@@ -4,25 +4,25 @@ import hre from "hardhat";
 import { getAddress, parseEther } from "viem";
 import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 
-// Define the Ignition Module for MyToken
-const MyTokenModule = buildModule("MyTokenModule", (m) => {
+// Define the Ignition Module for dcuToken
+const DCU = buildModule("DCU", (m) => {
   const initialSupply = m.getParameter("initialSupply", parseEther("1000000")); // 1,000,000 tokens
-  const myToken = m.contract("MyToken", [initialSupply]);
+  const dcuToken = m.contract("DCU", [initialSupply]);
 
-  return { myToken };
+  return { dcuToken };
 });
 
-describe("MyToken", function () {
-  // Fixture to deploy the MyToken contract using Ignition
-  async function deployMyTokenFixture() {
+describe("DCU", function () {
+  // Fixture to deploy the dcuToken contract using Ignition
+  async function deployDeCleanpFixture() {
     const [owner, addr1, addr2] = await hre.viem.getWalletClients();
     const publicClient = await hre.viem.getPublicClient();
 
-    // Deploy the MyToken module using Ignition
-    const { myToken } = await hre.ignition.deploy(MyTokenModule);
+    // Deploy the dcuToken module using Ignition
+    const { dcuToken } = await hre.ignition.deploy(DCU);
 
     return {
-      myToken,
+      dcuToken,
       owner,
       addr1,
       addr2,
@@ -32,55 +32,55 @@ describe("MyToken", function () {
 
   describe("Deployment", function () {
     it("Should set the correct name and symbol", async function () {
-      const { myToken } = await loadFixture(deployMyTokenFixture);
+      const { dcuToken } = await loadFixture(deployDeCleanpFixture);
 
-      expect(await myToken.read.name()).to.equal("MyToken");
-      expect(await myToken.read.symbol()).to.equal("MTK");
+      expect(await dcuToken.read.name()).to.equal("DeCleanup");
+      expect(await dcuToken.read.symbol()).to.equal("DCU");
     });
 
     it("Should mint the initial supply to the deployer", async function () {
-      const { myToken, owner } = await loadFixture(deployMyTokenFixture);
+      const { dcuToken, owner } = await loadFixture(deployDeCleanpFixture);
 
-      const ownerBalance = await myToken.read.balanceOf([getAddress(owner.account.address)]);
+      const ownerBalance = await dcuToken.read.balanceOf([getAddress(owner.account.address)]);
       expect(ownerBalance).to.equal(parseEther("1000000")); // 1,000,000 tokens
     });
   });
 
   describe("Transfers", function () {
     it("Should transfer tokens between accounts", async function () {
-      const { myToken, owner, addr1 } = await loadFixture(deployMyTokenFixture);
+      const { dcuToken, owner, addr1 } = await loadFixture(deployDeCleanpFixture);
 
       const transferAmount = parseEther("100"); // 100 tokens
-      await myToken.write.transfer([getAddress(addr1.account.address), transferAmount]);
+      await dcuToken.write.transfer([getAddress(addr1.account.address), transferAmount]);
 
-      const addr1Balance = await myToken.read.balanceOf([getAddress(addr1.account.address)]);
+      const addr1Balance = await dcuToken.read.balanceOf([getAddress(addr1.account.address)]);
       expect(addr1Balance).to.equal(transferAmount);
 
-      const ownerBalance = await myToken.read.balanceOf([getAddress(owner.account.address)]);
+      const ownerBalance = await dcuToken.read.balanceOf([getAddress(owner.account.address)]);
       const expectedOwnerBalance = parseEther("999900"); // 1,000,000 - 100
       expect(ownerBalance).to.equal(expectedOwnerBalance);
     });
 
     it("Should fail if sender doesn’t have enough tokens", async function () {
-      const { myToken, addr1 } = await loadFixture(deployMyTokenFixture);
+      const { dcuToken, addr1 } = await loadFixture(deployDeCleanpFixture);
 
       const transferAmount = parseEther("1000001"); // More than the initial supply
       await expect(
-        myToken.write.transfer([getAddress(addr1.account.address), transferAmount])
+        dcuToken.write.transfer([getAddress(addr1.account.address), transferAmount])
       ).to.be.rejectedWith("ERC20: transfer amount exceeds balance");
     });
   });
 
   describe("Events", function () {
     it("Should emit a Transfer event on transfers", async function () {
-      const { myToken, owner, addr1, publicClient } = await loadFixture(deployMyTokenFixture);
+      const { dcuToken, owner, addr1, publicClient } = await loadFixture(deployDeCleanpFixture);
 
       const transferAmount = parseEther("100"); // 100 tokens
-      const hash = await myToken.write.transfer([getAddress(addr1.account.address), transferAmount]);
+      const hash = await dcuToken.write.transfer([getAddress(addr1.account.address), transferAmount]);
       await publicClient.waitForTransactionReceipt({ hash });
 
       // Get the Transfer events in the latest block
-      const transferEvents = await myToken.getEvents.Transfer();
+      const transferEvents = await dcuToken.getEvents.Transfer();
       expect(transferEvents).to.have.lengthOf(1);
       expect(transferEvents[0].args.from).to.equal(getAddress(owner.account.address));
       expect(transferEvents[0].args.to).to.equal(getAddress(addr1.account.address));
