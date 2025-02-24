@@ -1,13 +1,64 @@
-# Sample Hardhat Project
+# 🚀 DeCleanup Network – Smart Contracts Repository  
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a Hardhat Ignition module that deploys that contract.
+## 🔹 Overview  
+This repository contains the **smart contract infrastructure for DeCleanup Network**, responsible for:  
+✅ **Minting & upgrading Dynamic Impact Products (dIP NFTs).**  
+✅ **Tracking & storing Impact Value (IV) and level progression.**  
+✅ **Managing $DCU rewards for Impact Product claims, streaks, and referrals.**  
+✅ **$DCU ERC-20 Token Contract with claim restrictions pre-TGE.**  
+✅ **Preparing for decentralized verification and governance elements in future phases.**  
 
-Try running some of the following tasks:
+To ensure **scalability and upgradeability**, the system is structured with **four modular contracts**:  
+1️⃣ **Dynamic Impact Product (dIP NFT Contract)** – Handles **minting, metadata updates, and level progression tracking**.  
+2️⃣ **$DCU Reward & Accounting Contract** – Stores **$DCU balances until users can claim them as tokens post-TGE**.  
+3️⃣ **Reward Logic Contract** – Manages **PoI verification, reward calculations, and staking mechanics** (future expansion).  
+4️⃣ **$DCU Token Contract (ERC-20)** – Implements **$DCU with upgradeable staking & governance support**.
 
-```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat ignition deploy ./ignition/modules/Lock.ts
-```
+---
+
+## 🛠 Tech Stack  
+- **Smart Contract Language:** Solidity  
+- **Frameworks:** Hardhat, Foundry  
+- **Standards Used:** OpenZeppelin (ERC-721 for NFTs, ERC-20 for $DCU)  
+- **Blockchain Tools:** viem, wagmi, The Graph (indexing)  
+- **Storage:** IPFS (for metadata storage)  
+
+---
+
+## 📌 Phase 1 – Current Development Focus  
+✅ **Dynamic Impact Product (dIP) Contract** – Minting & upgrading ERC-721 NFTs.  
+✅ **$DCU Reward Tracking Contract** – Storing earned $DCU until post-TGE claims are enabled.  
+✅ **Reward Logic Contract** – Processing PoI claims, streaks, and referral bonuses.  
+✅ **$DCU Token Contract (ERC-20)** – **Pre-TGE implementation with restricted transfers**.  
+✅ **On-Chain Events for Indexing** – Emitting blockchain events for leaderboard & impact tracking.  
+✅ **Gas Optimization** – Reducing transaction costs for reward distribution.  
+
+---
+
+## 🔄 Phase 2 – Decentralization & Expansion  
+🔹 **Decentralized Verification** – Smart contract-based PoI validation by verifiers.  
+🔹 **Impact Circles & Group Cleanups** – Collaborative cleanups built on separate smart contracts with multipliers.  
+🔹 **Staking & Locking** – Lock $DCU for verifier roles.  
+
+---
+
+## 🚀 Phase 3 – Scaling & Governance  
+🌍 **Cross-Chain Deployment** – Expanding to L2s like Optimism, Arbitrum, and Supra.   
+🏛 **Governance** – Community-driven reward system scaling.  
+📊 **Advanced Analytics & Impact Tracking** – Smart contracts interacting with indexing tools.  
+
+---
+
+## ⚡ Scalability Considerations  
+✅ **Modular Contract Architecture** – Allows upgrades without affecting core functionality.  
+✅ **Efficient Gas Usage** – Optimized transactions for NFT minting, reward claims, and level upgrades.  
+✅ **Event-Driven System** – Uses on-chain events for indexers and leaderboard updates.  
+✅ **Future-Ready Claim System** – $DCU is **tracked in the system until post-TGE**, when it will be claimable as tokens.  
+
+---
+
+## 🏗 Contributor Guidelines  
+- Start with **Phase 1 issues** before working on staking, governance, or verification logic.  
+- **Keep contract logic modular** to ensure easy upgradeability in future phases.  
+- **Optimize gas usage** when handling NFT upgrades and reward claims.  
+- Discuss **contract changes in GitHub Issues** before submitting PRs.  
