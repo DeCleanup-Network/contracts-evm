@@ -56,14 +56,35 @@ contract DCURewardManager is Ownable {
     }
     
     // Events
-    event RewardEarned(address indexed user, uint256 amount, string activityType);
     event RewardClaimed(address indexed user, uint256 amount);
     event PoiVerified(address indexed user, uint256 timestamp);
-    event PoiStreakMaintained(address indexed user, uint256 timestamp);
     event PoiStreakReset(address indexed user, uint256 timestamp);
     event ReferralRegistered(address indexed referrer, address indexed invitee);
-    event ReferralRewarded(address indexed referrer, address indexed invitee, uint256 amount);
-    event ImpactProductClaimed(address indexed user, uint256 level);
+    
+    // Consolidated reward events with detailed information
+    event DCURewardImpactProduct(
+        address indexed user, 
+        uint256 amount, 
+        uint256 level, 
+        uint256 timestamp, 
+        uint256 newBalance
+    );
+    
+    event DCURewardStreak(
+        address indexed user, 
+        uint256 amount, 
+        uint256 streakDays, 
+        uint256 timestamp, 
+        uint256 newBalance
+    );
+    
+    event DCURewardReferral(
+        address indexed referrer, 
+        address indexed invitee, 
+        uint256 amount, 
+        uint256 timestamp, 
+        uint256 newBalance
+    );
     
     /**
      * @dev Constructor sets the DCU token address and initial reward amounts
@@ -92,8 +113,19 @@ contract DCURewardManager is Ownable {
                 // Reward streak
                 userBalances[user] += streakReward;
                 totalStreakRewards[user] += streakReward;
-                emit PoiStreakMaintained(user, currentTime);
-                emit RewardEarned(user, streakReward, "poi_streak");
+                
+                // Calculate streak days (approximate)
+                uint256 streakDays = (currentTime - lastPoiTimestamp[user]) / 1 days;
+                if (streakDays == 0) streakDays = 1; // Minimum 1 day
+                
+                // Emit consolidated streak reward event
+                emit DCURewardStreak(
+                    user,
+                    streakReward,
+                    streakDays,
+                    currentTime,
+                    userBalances[user]
+                );
             } else if (lastPoiTimestamp[user] > 0) {
                 // Streak reset
                 emit PoiStreakReset(user, currentTime);
@@ -134,8 +166,17 @@ contract DCURewardManager is Ownable {
         // Reward the user for claiming an Impact Product
         userBalances[user] += impactProductClaimReward;
         totalClaimRewards[user] += impactProductClaimReward;
-        emit RewardEarned(user, impactProductClaimReward, "impact_product_claim");
-        emit ImpactProductClaimed(user, level);
+        
+        uint256 currentTime = block.timestamp;
+        
+        // Emit consolidated impact product reward event
+        emit DCURewardImpactProduct(
+            user,
+            impactProductClaimReward,
+            level,
+            currentTime,
+            userBalances[user]
+        );
         
         // Check if there's a referrer to reward
         address referrer = referrers[user];
@@ -144,8 +185,15 @@ contract DCURewardManager is Ownable {
             userBalances[referrer] += referralReward;
             totalReferralRewards[referrer] += referralReward;
             referralRewarded[referrer][user] = true;
-            emit RewardEarned(referrer, referralReward, "referral");
-            emit ReferralRewarded(referrer, user, referralReward);
+            
+            // Emit consolidated referral reward event
+            emit DCURewardReferral(
+                referrer,
+                user,
+                referralReward,
+                currentTime,
+                userBalances[referrer]
+            );
         }
     }
     
