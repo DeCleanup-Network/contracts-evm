@@ -6,7 +6,7 @@ import "./interfaces/IDCUToken.sol";
 
 /**
  * @title DCUAccounting
- * @dev Contract for managing DCU token deposits and withdrawals
+ * @dev Contract for managing DCU token deposits and withdrawals with TGE restrictions
  */
 contract DCUAccounting is Ownable {
     // Reference to the DCU token contract
@@ -18,6 +18,12 @@ contract DCUAccounting is Ownable {
     // Total amount of DCU tokens held by this contract
     uint256 public totalDeposits;
     
+    // TGE status
+    bool public tgeCompleted;
+    
+    // Whitelist for addresses that can transfer tokens before TGE
+    mapping(address => bool) public whitelisted;
+    
     // Mutex for reentrancy protection
     bool private _locked;
     
@@ -25,6 +31,10 @@ contract DCUAccounting is Ownable {
     event Deposit(address indexed user, uint256 amount);
     event Withdrawal(address indexed user, uint256 amount);
     event EmergencyWithdrawal(address indexed owner, uint256 amount);
+    event AddressWhitelisted(address indexed account);
+    event AddressRemovedFromWhitelist(address indexed account);
+    event TGEStatusChanged(bool completed);
+    event InternalTransfer(address indexed from, address indexed to, uint256 amount);
     
     /**
      * @dev Modifier to prevent reentrancy attacks
@@ -37,12 +47,56 @@ contract DCUAccounting is Ownable {
     }
     
     /**
+     * @dev Modifier to check if transfers are allowed
+     * @param account The account to check
+     */
+    modifier canTransfer(address account) {
+        require(tgeCompleted || whitelisted[account], "Transfers not allowed before TGE");
+        _;
+    }
+    
+    /**
      * @dev Constructor sets the DCU token address
      * @param _dcuToken Address of the DCU token contract
      */
     constructor(address _dcuToken) Ownable(msg.sender) {
         dcuToken = IDCUToken(_dcuToken);
         _locked = false;
+        tgeCompleted = false;
+        
+        // Whitelist the contract itself
+        whitelisted[address(this)] = true;
+        // Whitelist the owner (treasury)
+        whitelisted[msg.sender] = true;
+    }
+    
+    /**
+     * @dev Set the TGE status
+     * @param _tgeCompleted Whether the TGE is completed
+     */
+    function setTGEStatus(bool _tgeCompleted) external onlyOwner {
+        tgeCompleted = _tgeCompleted;
+        emit TGEStatusChanged(_tgeCompleted);
+    }
+    
+    /**
+     * @dev Add an address to the whitelist
+     * @param account The address to whitelist
+     */
+    function addToWhitelist(address account) external onlyOwner {
+        require(account != address(0), "Invalid address");
+        whitelisted[account] = true;
+        emit AddressWhitelisted(account);
+    }
+    
+    /**
+     * @dev Remove an address from the whitelist
+     * @param account The address to remove
+     */
+    function removeFromWhitelist(address account) external onlyOwner {
+        require(whitelisted[account], "Address not whitelisted");
+        whitelisted[account] = false;
+        emit AddressRemovedFromWhitelist(account);
     }
     
     /**
@@ -63,7 +117,7 @@ contract DCUAccounting is Ownable {
      * @dev Allows a user to withdraw their deposited DCU tokens
      * @param amount Amount of DCU to withdraw
      */
-    function withdraw(uint256 amount) external nonReentrant {
+    function withdraw(uint256 amount) external nonReentrant canTransfer(msg.sender) {
         require(amount > 0, "Amount must be greater than 0");
         require(balances[msg.sender] >= amount, "Insufficient balance");
         
@@ -73,6 +127,22 @@ contract DCUAccounting is Ownable {
         require(dcuToken.transfer(msg.sender, amount), "Transfer failed");
         
         emit Withdrawal(msg.sender, amount);
+    }
+    
+    /**
+     * @dev Transfer tokens internally between accounts (no actual token transfer)
+     * @param to Recipient address
+     * @param amount Amount to transfer
+     */
+    function internalTransfer(address to, uint256 amount) external nonReentrant {
+        require(to != address(0), "Invalid recipient");
+        require(amount > 0, "Amount must be greater than 0");
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
+        
+        emit InternalTransfer(msg.sender, to, amount);
     }
     
     /**
@@ -105,7 +175,7 @@ contract DCUAccounting is Ownable {
      * @param user Address of the user
      * @param amount Amount of DCU to withdraw
      */
-    function withdrawFor(address user, uint256 amount) external onlyOwner nonReentrant {
+    function withdrawFor(address user, uint256 amount) external onlyOwner nonReentrant canTransfer(user) {
         require(user != address(0), "Invalid user address");
         require(amount > 0, "Amount must be greater than 0");
         require(balances[user] >= amount, "Insufficient balance");
@@ -129,5 +199,14 @@ contract DCUAccounting is Ownable {
         require(dcuToken.transfer(owner(), contractBalance), "Transfer failed");
         
         emit EmergencyWithdrawal(owner(), contractBalance);
+    }
+    
+    /**
+     * @dev Check if an address is whitelisted
+     * @param account The address to check
+     * @return Whether the address is whitelisted
+     */
+    function isWhitelisted(address account) external view returns (bool) {
+        return whitelisted[account];
     }
 } 

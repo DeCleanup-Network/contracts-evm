@@ -71,9 +71,14 @@ describe("DCUAccounting", function () {
     });
 
     it("Should allow withdrawals", async function () {
-      const { dcuToken, dcuAccounting, user1 } = await loadFixture(
+      const { dcuToken, dcuAccounting, owner, user1 } = await loadFixture(
         deployAccountingFixture
       );
+
+      // Set TGE as completed to allow withdrawals
+      await dcuAccounting.write.setTGEStatus([true], {
+        account: owner.account,
+      });
 
       const amount = 100n * 10n ** 18n; // 100 tokens
       await dcuToken.write.approve([dcuAccounting.address, amount], {
@@ -99,9 +104,14 @@ describe("DCUAccounting", function () {
     });
 
     it("Should prevent withdrawals exceeding balance", async function () {
-      const { dcuAccounting, user1 } = await loadFixture(
+      const { dcuAccounting, owner, user1 } = await loadFixture(
         deployAccountingFixture
       );
+
+      // Set TGE as completed to allow withdrawals
+      await dcuAccounting.write.setTGEStatus([true], {
+        account: owner.account,
+      });
 
       await expect(
         dcuAccounting.write.withdraw([1n * 10n ** 18n], {
@@ -123,9 +133,14 @@ describe("DCUAccounting", function () {
     });
 
     it("Should prevent withdrawals of zero amount", async function () {
-      const { dcuAccounting, user1 } = await loadFixture(
+      const { dcuAccounting, owner, user1 } = await loadFixture(
         deployAccountingFixture
       );
+
+      // Set TGE as completed to allow withdrawals
+      await dcuAccounting.write.setTGEStatus([true], {
+        account: owner.account,
+      });
 
       await expect(
         dcuAccounting.write.withdraw([0n], {
@@ -165,6 +180,11 @@ describe("DCUAccounting", function () {
       const { dcuToken, dcuAccounting, owner, user1 } = await loadFixture(
         deployAccountingFixture
       );
+
+      // Set TGE as completed to allow withdrawals
+      await dcuAccounting.write.setTGEStatus([true], {
+        account: owner.account,
+      });
 
       // First deposit some tokens
       const amount = 100n * 10n ** 18n; // 100 tokens
@@ -288,9 +308,13 @@ describe("DCUAccounting", function () {
 
   describe("Balance Tracking", function () {
     it("Should correctly track balances for multiple users", async function () {
-      const { dcuToken, dcuAccounting, user1, user2 } = await loadFixture(
-        deployAccountingFixture
-      );
+      const { dcuToken, dcuAccounting, owner, user1, user2 } =
+        await loadFixture(deployAccountingFixture);
+
+      // Set TGE as completed to allow withdrawals
+      await dcuAccounting.write.setTGEStatus([true], {
+        account: owner.account,
+      });
 
       // User 1 deposits
       const amount1 = 100n * 10n ** 18n; // 100 tokens
@@ -359,6 +383,231 @@ describe("DCUAccounting", function () {
         getAddress(user1.account.address),
       ]);
       expect(balance).to.equal(amount);
+    });
+  });
+
+  describe("TGE Restrictions", function () {
+    it("Should prevent non-whitelisted users from withdrawing before TGE", async function () {
+      const { dcuToken, dcuAccounting, owner, user1 } = await loadFixture(
+        deployAccountingFixture
+      );
+
+      // First deposit some tokens
+      const amount = 100n * 10n ** 18n; // 100 tokens
+      await dcuToken.write.approve([dcuAccounting.address, amount], {
+        account: user1.account,
+      });
+
+      await dcuAccounting.write.deposit([amount], {
+        account: user1.account,
+      });
+
+      // Verify TGE is not completed
+      const tgeStatus = await dcuAccounting.read.tgeCompleted();
+      expect(tgeStatus).to.equal(false);
+
+      // Try to withdraw as non-whitelisted user
+      await expect(
+        dcuAccounting.write.withdraw([amount], {
+          account: user1.account,
+        })
+      ).to.be.rejectedWith("Transfers not allowed before TGE");
+    });
+
+    it("Should allow whitelisted users to withdraw before TGE", async function () {
+      const { dcuToken, dcuAccounting, owner, user1 } = await loadFixture(
+        deployAccountingFixture
+      );
+
+      // Add user1 to whitelist
+      await dcuAccounting.write.addToWhitelist(
+        [getAddress(user1.account.address)],
+        {
+          account: owner.account,
+        }
+      );
+
+      // Verify user1 is whitelisted
+      const isWhitelisted = await dcuAccounting.read.isWhitelisted([
+        getAddress(user1.account.address),
+      ]);
+      expect(isWhitelisted).to.equal(true);
+
+      // Deposit and withdraw
+      const amount = 100n * 10n ** 18n; // 100 tokens
+      await dcuToken.write.approve([dcuAccounting.address, amount], {
+        account: user1.account,
+      });
+
+      await dcuAccounting.write.deposit([amount], {
+        account: user1.account,
+      });
+
+      await dcuAccounting.write.withdraw([amount], {
+        account: user1.account,
+      });
+
+      const balance = await dcuAccounting.read.balances([
+        getAddress(user1.account.address),
+      ]);
+      expect(balance).to.equal(0n);
+    });
+
+    it("Should allow all users to withdraw after TGE", async function () {
+      const { dcuToken, dcuAccounting, owner, user1 } = await loadFixture(
+        deployAccountingFixture
+      );
+
+      // First deposit some tokens
+      const amount = 100n * 10n ** 18n; // 100 tokens
+      await dcuToken.write.approve([dcuAccounting.address, amount], {
+        account: user1.account,
+      });
+
+      await dcuAccounting.write.deposit([amount], {
+        account: user1.account,
+      });
+
+      // Set TGE as completed
+      await dcuAccounting.write.setTGEStatus([true], {
+        account: owner.account,
+      });
+
+      // Verify TGE is completed
+      const tgeStatus = await dcuAccounting.read.tgeCompleted();
+      expect(tgeStatus).to.equal(true);
+
+      // Withdraw as non-whitelisted user after TGE
+      await dcuAccounting.write.withdraw([amount], {
+        account: user1.account,
+      });
+
+      const balance = await dcuAccounting.read.balances([
+        getAddress(user1.account.address),
+      ]);
+      expect(balance).to.equal(0n);
+    });
+  });
+
+  describe("Whitelist Management", function () {
+    it("Should allow owner to add and remove addresses from whitelist", async function () {
+      const { dcuAccounting, owner, user1 } = await loadFixture(
+        deployAccountingFixture
+      );
+
+      // Add user1 to whitelist
+      await dcuAccounting.write.addToWhitelist(
+        [getAddress(user1.account.address)],
+        {
+          account: owner.account,
+        }
+      );
+
+      // Verify user1 is whitelisted
+      let isWhitelisted = await dcuAccounting.read.isWhitelisted([
+        getAddress(user1.account.address),
+      ]);
+      expect(isWhitelisted).to.equal(true);
+
+      // Remove user1 from whitelist
+      await dcuAccounting.write.removeFromWhitelist(
+        [getAddress(user1.account.address)],
+        {
+          account: owner.account,
+        }
+      );
+
+      // Verify user1 is no longer whitelisted
+      isWhitelisted = await dcuAccounting.read.isWhitelisted([
+        getAddress(user1.account.address),
+      ]);
+      expect(isWhitelisted).to.equal(false);
+    });
+
+    it("Should prevent non-owners from managing whitelist", async function () {
+      const { dcuAccounting, owner, user1, user2 } = await loadFixture(
+        deployAccountingFixture
+      );
+
+      await expect(
+        dcuAccounting.write.addToWhitelist(
+          [getAddress(user2.account.address)],
+          {
+            account: user1.account,
+          }
+        )
+      ).to.be.rejected;
+
+      // Owner adds user2 to whitelist
+      await dcuAccounting.write.addToWhitelist(
+        [getAddress(user2.account.address)],
+        {
+          account: owner.account,
+        }
+      );
+
+      await expect(
+        dcuAccounting.write.removeFromWhitelist(
+          [getAddress(user2.account.address)],
+          {
+            account: user1.account,
+          }
+        )
+      ).to.be.rejected;
+    });
+  });
+
+  describe("Internal Transfers", function () {
+    it("Should allow internal transfers between users", async function () {
+      const { dcuToken, dcuAccounting, user1, user2 } = await loadFixture(
+        deployAccountingFixture
+      );
+
+      // User1 deposits tokens
+      const amount = 100n * 10n ** 18n; // 100 tokens
+      await dcuToken.write.approve([dcuAccounting.address, amount], {
+        account: user1.account,
+      });
+
+      await dcuAccounting.write.deposit([amount], {
+        account: user1.account,
+      });
+
+      // User1 transfers internally to user2
+      const transferAmount = 50n * 10n ** 18n; // 50 tokens
+      await dcuAccounting.write.internalTransfer(
+        [getAddress(user2.account.address), transferAmount],
+        { account: user1.account }
+      );
+
+      // Check balances
+      const user1Balance = await dcuAccounting.read.balances([
+        getAddress(user1.account.address),
+      ]);
+      expect(user1Balance).to.equal(amount - transferAmount);
+
+      const user2Balance = await dcuAccounting.read.balances([
+        getAddress(user2.account.address),
+      ]);
+      expect(user2Balance).to.equal(transferAmount);
+
+      // Total deposits should remain unchanged
+      const totalDeposits = await dcuAccounting.read.totalDeposits();
+      expect(totalDeposits).to.equal(amount);
+    });
+
+    it("Should prevent internal transfers with insufficient balance", async function () {
+      const { dcuAccounting, user1, user2 } = await loadFixture(
+        deployAccountingFixture
+      );
+
+      const transferAmount = 50n * 10n ** 18n; // 50 tokens
+      await expect(
+        dcuAccounting.write.internalTransfer(
+          [getAddress(user2.account.address), transferAmount],
+          { account: user1.account }
+        )
+      ).to.be.rejectedWith("Insufficient balance");
     });
   });
 });
