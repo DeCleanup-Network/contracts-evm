@@ -318,4 +318,168 @@ describe("DCURewardManager", function () {
       expect(internalBalance).to.equal(0n);
     });
   });
+
+  // Add a new test section for the getter functions
+  describe("Reward Tracking and Getter Functions", function () {
+    it("Should track total earned DCU correctly", async function () {
+      const { dcuRewardManager, user1, owner } = await loadFixture(
+        deployContractsFixture
+      );
+
+      // Verify PoI
+      await dcuRewardManager.write.setPoiVerificationStatus(
+        [getAddress(user1.account.address), true],
+        { account: owner.account }
+      );
+
+      // Reward Impact Product claim
+      await dcuRewardManager.write.rewardImpactProductClaim(
+        [getAddress(user1.account.address), 1n],
+        { account: owner.account }
+      );
+
+      // Check total earned before claiming
+      const totalEarnedBefore = await dcuRewardManager.read.getTotalEarnedDCU([
+        getAddress(user1.account.address),
+      ]);
+      expect(totalEarnedBefore).to.equal(10n * 10n ** 18n); // 10 DCU
+
+      // Claim half of the rewards
+      await dcuRewardManager.write.claimRewards(
+        [5n * 10n ** 18n], // 5 DCU
+        { account: user1.account }
+      );
+
+      // Check total earned after claiming (should still be 10 DCU)
+      const totalEarnedAfter = await dcuRewardManager.read.getTotalEarnedDCU([
+        getAddress(user1.account.address),
+      ]);
+      expect(totalEarnedAfter).to.equal(10n * 10n ** 18n); // 10 DCU
+    });
+
+    it("Should provide correct rewards breakdown", async function () {
+      const { dcuRewardManager, user1, user2, owner, publicClient } =
+        await loadFixture(deployContractsFixture);
+
+      // Register referral (user1 refers user2)
+      await dcuRewardManager.write.registerReferral(
+        [getAddress(user2.account.address), getAddress(user1.account.address)],
+        { account: owner.account }
+      );
+
+      // Verify user1's PoI
+      await dcuRewardManager.write.setPoiVerificationStatus(
+        [getAddress(user1.account.address), true],
+        { account: owner.account }
+      );
+
+      // Advance time by 6 days
+      await time.increase(6 * 24 * 60 * 60);
+
+      // Verify user1's PoI again (streak reward)
+      await dcuRewardManager.write.setPoiVerificationStatus(
+        [getAddress(user1.account.address), true],
+        { account: owner.account }
+      );
+
+      // Verify user2's PoI
+      await dcuRewardManager.write.setPoiVerificationStatus(
+        [getAddress(user2.account.address), true],
+        { account: owner.account }
+      );
+
+      // User1 claims Impact Product
+      await dcuRewardManager.write.rewardImpactProductClaim(
+        [getAddress(user1.account.address), 1n],
+        { account: owner.account }
+      );
+
+      // User2 claims Impact Product (triggers referral reward for user1)
+      await dcuRewardManager.write.rewardImpactProductClaim(
+        [getAddress(user2.account.address), 1n],
+        { account: owner.account }
+      );
+
+      // Check rewards breakdown for user1
+      const [
+        claimRewardsAmount,
+        streakRewardsAmount,
+        referralRewardsAmount,
+        currentBalance,
+        claimedRewards,
+      ] = await dcuRewardManager.read.getRewardsBreakdown([
+        getAddress(user1.account.address),
+      ]);
+
+      expect(claimRewardsAmount).to.equal(10n * 10n ** 18n); // 10 DCU from Impact Product claim
+      expect(streakRewardsAmount).to.equal(3n * 10n ** 18n); // 3 DCU from streak
+      expect(referralRewardsAmount).to.equal(1n * 10n ** 18n); // 1 DCU from referral
+      expect(currentBalance).to.equal(14n * 10n ** 18n); // 14 DCU total (10+3+1)
+      expect(claimedRewards).to.equal(0n); // 0 DCU claimed
+
+      // User1 claims some rewards
+      await dcuRewardManager.write.claimRewards(
+        [5n * 10n ** 18n], // 5 DCU
+        { account: user1.account }
+      );
+
+      // Check updated breakdown
+      const [
+        claimRewardsAmountAfter,
+        streakRewardsAmountAfter,
+        referralRewardsAmountAfter,
+        currentBalanceAfter,
+        claimedRewardsAfter,
+      ] = await dcuRewardManager.read.getRewardsBreakdown([
+        getAddress(user1.account.address),
+      ]);
+
+      expect(claimRewardsAmountAfter).to.equal(10n * 10n ** 18n); // Still 10 DCU from claims
+      expect(streakRewardsAmountAfter).to.equal(3n * 10n ** 18n); // Still 3 DCU from streak
+      expect(referralRewardsAmountAfter).to.equal(1n * 10n ** 18n); // Still 1 DCU from referral
+      expect(currentBalanceAfter).to.equal(9n * 10n ** 18n); // 9 DCU (14-5)
+      expect(claimedRewardsAfter).to.equal(5n * 10n ** 18n); // 5 DCU claimed
+    });
+
+    it("Should provide complete user stats", async function () {
+      const { dcuRewardManager, user1, owner } = await loadFixture(
+        deployContractsFixture
+      );
+
+      // Verify PoI
+      await dcuRewardManager.write.setPoiVerificationStatus(
+        [getAddress(user1.account.address), true],
+        { account: owner.account }
+      );
+
+      // Reward Impact Product claim
+      await dcuRewardManager.write.rewardImpactProductClaim(
+        [getAddress(user1.account.address), 1n],
+        { account: owner.account }
+      );
+
+      // Get user stats
+      const [
+        currentBalance,
+        totalEarned,
+        totalClaimed,
+        claimRewardsAmount,
+        streakRewardsAmount,
+        referralRewardsAmount,
+        lastPoiTime,
+        isPoiVerified,
+      ] = await dcuRewardManager.read.getUserStats([
+        getAddress(user1.account.address),
+      ]);
+
+      expect(currentBalance).to.equal(10n * 10n ** 18n); // 10 DCU current balance
+      expect(totalEarned).to.equal(10n * 10n ** 18n); // 10 DCU total earned
+      expect(totalClaimed).to.equal(0n); // 0 DCU claimed
+      expect(claimRewardsAmount).to.equal(10n * 10n ** 18n); // 10 DCU from claims
+      expect(streakRewardsAmount).to.equal(0n); // 0 DCU from streaks
+      expect(referralRewardsAmount).to.equal(0n); // 0 DCU from referrals
+      expect(Number(lastPoiTime)).to.be.greaterThan(0); // Should have a timestamp
+      expect(isPoiVerified).to.be.true; // PoI should be verified
+    });
+  });
 });

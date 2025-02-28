@@ -33,6 +33,28 @@ contract DCURewardManager is Ownable {
     mapping(address => address) public referrers; // invitee => referrer
     mapping(address => mapping(address => bool)) public referralRewarded; // referrer => invitee => rewarded
     
+    // Reward tracking for analytics
+    mapping(address => uint256) public totalClaimRewards; // Total rewards from Impact Product claims
+    mapping(address => uint256) public totalStreakRewards; // Total rewards from streaks
+    mapping(address => uint256) public totalReferralRewards; // Total rewards from referrals
+    mapping(address => uint256) public totalRewardsClaimed; // Total rewards claimed (post-TGE)
+    
+    // Struct for user reward stats to avoid stack too deep errors
+    struct UserRewardStats {
+        uint256 currentBalance;
+        uint256 totalEarned;
+        uint256 totalClaimed;
+        uint256 claimRewardsAmount;
+        uint256 streakRewardsAmount;
+        uint256 referralRewardsAmount;
+    }
+    
+    // Struct for user PoI stats
+    struct UserPoiStats {
+        uint256 lastPoiTime;
+        bool isPoiVerified;
+    }
+    
     // Events
     event RewardEarned(address indexed user, uint256 amount, string activityType);
     event RewardClaimed(address indexed user, uint256 amount);
@@ -69,6 +91,7 @@ contract DCURewardManager is Ownable {
             if (lastPoiTimestamp[user] > 0 && currentTime - lastPoiTimestamp[user] <= 7 days) {
                 // Reward streak
                 userBalances[user] += streakReward;
+                totalStreakRewards[user] += streakReward;
                 emit PoiStreakMaintained(user, currentTime);
                 emit RewardEarned(user, streakReward, "poi_streak");
             } else if (lastPoiTimestamp[user] > 0) {
@@ -110,6 +133,7 @@ contract DCURewardManager is Ownable {
         
         // Reward the user for claiming an Impact Product
         userBalances[user] += impactProductClaimReward;
+        totalClaimRewards[user] += impactProductClaimReward;
         emit RewardEarned(user, impactProductClaimReward, "impact_product_claim");
         emit ImpactProductClaimed(user, level);
         
@@ -118,6 +142,7 @@ contract DCURewardManager is Ownable {
         if (referrer != address(0) && !referralRewarded[referrer][user]) {
             // Reward the referrer (only once per referred user)
             userBalances[referrer] += referralReward;
+            totalReferralRewards[referrer] += referralReward;
             referralRewarded[referrer][user] = true;
             emit RewardEarned(referrer, referralReward, "referral");
             emit ReferralRewarded(referrer, user, referralReward);
@@ -140,6 +165,7 @@ contract DCURewardManager is Ownable {
     function claimRewards(uint256 amount) external {
         require(userBalances[msg.sender] >= amount, "Insufficient balance");
         userBalances[msg.sender] -= amount;
+        totalRewardsClaimed[msg.sender] += amount;
         require(dcuToken.mint(msg.sender, amount), "Reward distribution failed");
         emit RewardClaimed(msg.sender, amount);
     }
@@ -196,5 +222,102 @@ contract DCURewardManager is Ownable {
      */
     function getLastPoiTimestamp(address user) external view returns (uint256) {
         return lastPoiTimestamp[user];
+    }
+    
+    /**
+     * @dev Get the total earned DCU for a user (before claiming)
+     * @param user Address of the user
+     * @return Total earned DCU, including current balance and already claimed amount
+     */
+    function getTotalEarnedDCU(address user) external view returns (uint256) {
+        return userBalances[user] + totalRewardsClaimed[user];
+    }
+    
+    /**
+     * @dev Get the breakdown of rewards for a user
+     * @param user Address of the user
+     * @return claimRewardsAmount Total rewards from Impact Product claims
+     * @return streakRewardsAmount Total rewards from streaks
+     * @return referralRewardsAmount Total rewards from referrals
+     * @return currentBalance Current unclaimed balance
+     * @return claimedRewards Total rewards already claimed
+     */
+    function getRewardsBreakdown(address user) external view returns (
+        uint256 claimRewardsAmount,
+        uint256 streakRewardsAmount,
+        uint256 referralRewardsAmount,
+        uint256 currentBalance,
+        uint256 claimedRewards
+    ) {
+        return (
+            totalClaimRewards[user],
+            totalStreakRewards[user],
+            totalReferralRewards[user],
+            userBalances[user],
+            totalRewardsClaimed[user]
+        );
+    }
+    
+    /**
+     * @dev Get user reward stats
+     * @param user Address of the user
+     * @return stats Struct containing reward stats
+     */
+    function getUserRewardStats(address user) external view returns (UserRewardStats memory stats) {
+        stats.currentBalance = userBalances[user];
+        stats.totalEarned = userBalances[user] + totalRewardsClaimed[user];
+        stats.totalClaimed = totalRewardsClaimed[user];
+        stats.claimRewardsAmount = totalClaimRewards[user];
+        stats.streakRewardsAmount = totalStreakRewards[user];
+        stats.referralRewardsAmount = totalReferralRewards[user];
+        return stats;
+    }
+    
+    /**
+     * @dev Get user PoI stats
+     * @param user Address of the user
+     * @return stats Struct containing PoI stats
+     */
+    function getUserPoiStats(address user) external view returns (UserPoiStats memory stats) {
+        stats.lastPoiTime = lastPoiTimestamp[user];
+        stats.isPoiVerified = poiVerified[user];
+        return stats;
+    }
+    
+    /**
+     * @dev Get complete user stats for frontend display (compatibility function)
+     * @param user Address of the user
+     * @return currentBalance The user's current unclaimed balance
+     * @return totalEarned Total DCU earned (claimed + unclaimed)
+     * @return totalClaimed Total DCU already claimed
+     * @return claimRewardsAmount Total rewards from Impact Product claims
+     * @return streakRewardsAmount Total rewards from streaks
+     * @return referralRewardsAmount Total rewards from referrals
+     * @return lastPoiTime Timestamp of the last verified PoI
+     * @return isPoiVerified Whether the user's PoI is currently verified
+     */
+    function getUserStats(address user) external view returns (
+        uint256 currentBalance,
+        uint256 totalEarned,
+        uint256 totalClaimed,
+        uint256 claimRewardsAmount,
+        uint256 streakRewardsAmount,
+        uint256 referralRewardsAmount,
+        uint256 lastPoiTime,
+        bool isPoiVerified
+    ) {
+        UserRewardStats memory rewardStats = this.getUserRewardStats(user);
+        UserPoiStats memory poiStats = this.getUserPoiStats(user);
+        
+        return (
+            rewardStats.currentBalance,
+            rewardStats.totalEarned,
+            rewardStats.totalClaimed,
+            rewardStats.claimRewardsAmount,
+            rewardStats.streakRewardsAmount,
+            rewardStats.referralRewardsAmount,
+            poiStats.lastPoiTime,
+            poiStats.isPoiVerified
+        );
     }
 } 
