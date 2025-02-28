@@ -2,286 +2,320 @@ import { expect } from "chai";
 import hre from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox-viem/network-helpers";
 import { getAddress } from "viem";
+import { time } from "@nomicfoundation/hardhat-toolbox-viem/network-helpers";
 
 describe("DCURewardManager", function () {
-  async function deployRewardManagerFixture() {
-    const [owner, user1, user2] = await hre.viem.getWalletClients();
+  async function deployContractsFixture() {
+    const [owner, user1, user2, user3] = await hre.viem.getWalletClients();
     const publicClient = await hre.viem.getPublicClient();
 
-    // Define initial reward amounts
-    const dipClaimReward = 10n * 10n ** 18n; // 10 DCU
-    const referralReward = 5n * 10n ** 18n; // 5 DCU
-    const streakReward = 2n * 10n ** 18n; // 2 DCU
-
+    // Deploy DCU token
     const dcuToken = await hre.viem.deployContract("DCUToken");
-    const rewardManager = await hre.viem.deployContract("DCURewardManager", [
+
+    // Deploy DCURewardManager
+    const dcuRewardManager = await hre.viem.deployContract("DCURewardManager", [
       dcuToken.address,
-      dipClaimReward,
-      referralReward,
-      streakReward,
     ]);
 
-    // Transfer ownership of DCU token to reward manager
-    await dcuToken.write.transferOwnership([rewardManager.address], {
-      account: owner.account,
-    });
+    // Grant minting rights to DCURewardManager
+    await dcuToken.write.transferOwnership([dcuRewardManager.address]);
 
     return {
       dcuToken,
-      rewardManager,
+      dcuRewardManager,
       owner,
       user1,
       user2,
+      user3,
       publicClient,
-      dipClaimReward,
-      referralReward,
-      streakReward,
     };
   }
 
-  describe("Initialization", function () {
-    it("Should set initial reward values correctly", async function () {
-      const { rewardManager, dipClaimReward, referralReward, streakReward } =
-        await loadFixture(deployRewardManagerFixture);
-
-      expect(await rewardManager.read.dipClaimReward()).to.equal(
-        dipClaimReward
-      );
-      expect(await rewardManager.read.referralReward()).to.equal(
-        referralReward
-      );
-      expect(await rewardManager.read.streakReward()).to.equal(streakReward);
-    });
-  });
-
-  describe("Reward Distribution", function () {
-    it("Should reward user for dIP claim", async function () {
-      const { rewardManager, owner, user1, dipClaimReward } = await loadFixture(
-        deployRewardManagerFixture
+  describe("Impact Product Claim Rewards", function () {
+    it("Should not reward if PoI is not verified", async function () {
+      const { dcuRewardManager, user1, owner } = await loadFixture(
+        deployContractsFixture
       );
 
-      await rewardManager.write.rewardDipClaim(
-        [getAddress(user1.account.address)],
-        {
-          account: owner.account,
-        }
-      );
-
-      const balance = await rewardManager.read.getBalance([
-        getAddress(user1.account.address),
-      ]);
-      expect(balance).to.equal(dipClaimReward);
+      // Try to reward Impact Product claim without PoI verification
+      await expect(
+        dcuRewardManager.write.rewardImpactProductClaim(
+          [getAddress(user1.account.address), 1n],
+          { account: owner.account }
+        )
+      ).to.be.rejectedWith("PoI not verified");
     });
 
-    it("Should reward user for referral", async function () {
-      const { rewardManager, owner, user1, referralReward } = await loadFixture(
-        deployRewardManagerFixture
+    it("Should reward for Impact Product claim after PoI verification", async function () {
+      const { dcuRewardManager, user1, owner } = await loadFixture(
+        deployContractsFixture
       );
 
-      await rewardManager.write.rewardReferral(
-        [getAddress(user1.account.address)],
-        {
-          account: owner.account,
-        }
-      );
-
-      const balance = await rewardManager.read.getBalance([
-        getAddress(user1.account.address),
-      ]);
-      expect(balance).to.equal(referralReward);
-    });
-
-    it("Should reward user for streak", async function () {
-      const { rewardManager, owner, user1, streakReward } = await loadFixture(
-        deployRewardManagerFixture
-      );
-
-      await rewardManager.write.rewardStreak(
-        [getAddress(user1.account.address)],
-        {
-          account: owner.account,
-        }
-      );
-
-      const balance = await rewardManager.read.getBalance([
-        getAddress(user1.account.address),
-      ]);
-      expect(balance).to.equal(streakReward);
-    });
-
-    it("Should reward user with custom amount", async function () {
-      const { rewardManager, owner, user1 } = await loadFixture(
-        deployRewardManagerFixture
-      );
-
-      const customAmount = 15n * 10n ** 18n; // 15 DCU
-      await rewardManager.write.rewardCustom(
-        [getAddress(user1.account.address), customAmount, "special_event"],
+      // Verify PoI
+      await dcuRewardManager.write.setPoiVerificationStatus(
+        [getAddress(user1.account.address), true],
         { account: owner.account }
       );
 
-      const balance = await rewardManager.read.getBalance([
+      // Reward Impact Product claim
+      await dcuRewardManager.write.rewardImpactProductClaim(
+        [getAddress(user1.account.address), 1n],
+        { account: owner.account }
+      );
+
+      // Check balance
+      const balance = await dcuRewardManager.read.getBalance([
         getAddress(user1.account.address),
       ]);
-      expect(balance).to.equal(customAmount);
+      expect(balance).to.equal(10n * 10n ** 18n); // 10 DCU
     });
 
-    it("Should accumulate rewards from multiple activities", async function () {
-      const {
-        rewardManager,
-        owner,
-        user1,
-        dipClaimReward,
-        referralReward,
-        streakReward,
-      } = await loadFixture(deployRewardManagerFixture);
-
-      await rewardManager.write.rewardDipClaim(
-        [getAddress(user1.account.address)],
-        {
-          account: owner.account,
-        }
-      );
-      await rewardManager.write.rewardReferral(
-        [getAddress(user1.account.address)],
-        {
-          account: owner.account,
-        }
-      );
-      await rewardManager.write.rewardStreak(
-        [getAddress(user1.account.address)],
-        {
-          account: owner.account,
-        }
+    it("Should prevent duplicate rewards for the same level", async function () {
+      const { dcuRewardManager, user1, owner } = await loadFixture(
+        deployContractsFixture
       );
 
-      const expectedBalance = dipClaimReward + referralReward + streakReward;
-      const balance = await rewardManager.read.getBalance([
+      // Verify PoI
+      await dcuRewardManager.write.setPoiVerificationStatus(
+        [getAddress(user1.account.address), true],
+        { account: owner.account }
+      );
+
+      // Reward Impact Product claim
+      await dcuRewardManager.write.rewardImpactProductClaim(
+        [getAddress(user1.account.address), 1n],
+        { account: owner.account }
+      );
+
+      // Try to reward the same level again
+      await expect(
+        dcuRewardManager.write.rewardImpactProductClaim(
+          [getAddress(user1.account.address), 1n],
+          { account: owner.account }
+        )
+      ).to.be.rejectedWith("Level already claimed");
+
+      // But can claim a different level
+      await dcuRewardManager.write.rewardImpactProductClaim(
+        [getAddress(user1.account.address), 2n],
+        { account: owner.account }
+      );
+
+      // Check balance (should be 20 DCU now)
+      const balance = await dcuRewardManager.read.getBalance([
         getAddress(user1.account.address),
       ]);
-      expect(balance).to.equal(expectedBalance);
+      expect(balance).to.equal(20n * 10n ** 18n); // 20 DCU
+    });
+  });
+
+  describe("PoI Streak Rewards", function () {
+    it("Should not reward streak for first PoI verification", async function () {
+      const { dcuRewardManager, user1, owner } = await loadFixture(
+        deployContractsFixture
+      );
+
+      // Verify PoI for the first time
+      await dcuRewardManager.write.setPoiVerificationStatus(
+        [getAddress(user1.account.address), true],
+        { account: owner.account }
+      );
+
+      // Check balance (should be 0 as no streak yet)
+      const balance = await dcuRewardManager.read.getBalance([
+        getAddress(user1.account.address),
+      ]);
+      expect(balance).to.equal(0n);
+    });
+
+    it("Should reward streak for PoI verification within 7 days", async function () {
+      const { dcuRewardManager, user1, owner, publicClient } =
+        await loadFixture(deployContractsFixture);
+
+      // Verify PoI for the first time
+      await dcuRewardManager.write.setPoiVerificationStatus(
+        [getAddress(user1.account.address), true],
+        { account: owner.account }
+      );
+
+      // Advance time by 6 days
+      await time.increase(6 * 24 * 60 * 60);
+
+      // Verify PoI again
+      await dcuRewardManager.write.setPoiVerificationStatus(
+        [getAddress(user1.account.address), true],
+        { account: owner.account }
+      );
+
+      // Check balance (should be 3 DCU for streak)
+      const balance = await dcuRewardManager.read.getBalance([
+        getAddress(user1.account.address),
+      ]);
+      expect(balance).to.equal(3n * 10n ** 18n); // 3 DCU
+    });
+
+    it("Should not reward streak for PoI verification after 7 days", async function () {
+      const { dcuRewardManager, user1, owner, publicClient } =
+        await loadFixture(deployContractsFixture);
+
+      // Verify PoI for the first time
+      await dcuRewardManager.write.setPoiVerificationStatus(
+        [getAddress(user1.account.address), true],
+        { account: owner.account }
+      );
+
+      // Advance time by 8 days
+      await time.increase(8 * 24 * 60 * 60);
+
+      // Verify PoI again
+      await dcuRewardManager.write.setPoiVerificationStatus(
+        [getAddress(user1.account.address), true],
+        { account: owner.account }
+      );
+
+      // Check balance (should be 0 as streak was broken)
+      const balance = await dcuRewardManager.read.getBalance([
+        getAddress(user1.account.address),
+      ]);
+      expect(balance).to.equal(0n);
+    });
+  });
+
+  describe("Referral Rewards", function () {
+    it("Should register referral relationship", async function () {
+      const { dcuRewardManager, user1, user2, owner } = await loadFixture(
+        deployContractsFixture
+      );
+
+      // Register referral
+      await dcuRewardManager.write.registerReferral(
+        [getAddress(user2.account.address), getAddress(user1.account.address)],
+        { account: owner.account }
+      );
+
+      // Check referrer
+      const referrer = await dcuRewardManager.read.getReferrer([
+        getAddress(user2.account.address),
+      ]);
+      expect(referrer).to.equal(getAddress(user1.account.address));
+    });
+
+    it("Should reward referrer when invitee claims Impact Product", async function () {
+      const { dcuRewardManager, user1, user2, owner } = await loadFixture(
+        deployContractsFixture
+      );
+
+      // Register referral (user1 refers user2)
+      await dcuRewardManager.write.registerReferral(
+        [getAddress(user2.account.address), getAddress(user1.account.address)],
+        { account: owner.account }
+      );
+
+      // Verify user2's PoI
+      await dcuRewardManager.write.setPoiVerificationStatus(
+        [getAddress(user2.account.address), true],
+        { account: owner.account }
+      );
+
+      // User2 claims Impact Product
+      await dcuRewardManager.write.rewardImpactProductClaim(
+        [getAddress(user2.account.address), 1n],
+        { account: owner.account }
+      );
+
+      // Check user1's balance (should be 1 DCU for referral)
+      const referrerBalance = await dcuRewardManager.read.getBalance([
+        getAddress(user1.account.address),
+      ]);
+      expect(referrerBalance).to.equal(1n * 10n ** 18n); // 1 DCU
+
+      // Check user2's balance (should be 10 DCU for Impact Product claim)
+      const inviteeBalance = await dcuRewardManager.read.getBalance([
+        getAddress(user2.account.address),
+      ]);
+      expect(inviteeBalance).to.equal(10n * 10n ** 18n); // 10 DCU
+    });
+
+    it("Should only reward referrer once per invitee", async function () {
+      const { dcuRewardManager, user1, user2, owner } = await loadFixture(
+        deployContractsFixture
+      );
+
+      // Register referral (user1 refers user2)
+      await dcuRewardManager.write.registerReferral(
+        [getAddress(user2.account.address), getAddress(user1.account.address)],
+        { account: owner.account }
+      );
+
+      // Verify user2's PoI
+      await dcuRewardManager.write.setPoiVerificationStatus(
+        [getAddress(user2.account.address), true],
+        { account: owner.account }
+      );
+
+      // User2 claims first Impact Product
+      await dcuRewardManager.write.rewardImpactProductClaim(
+        [getAddress(user2.account.address), 1n],
+        { account: owner.account }
+      );
+
+      // User2 claims second Impact Product
+      await dcuRewardManager.write.rewardImpactProductClaim(
+        [getAddress(user2.account.address), 2n],
+        { account: owner.account }
+      );
+
+      // Check user1's balance (should still be 1 DCU for referral)
+      const referrerBalance = await dcuRewardManager.read.getBalance([
+        getAddress(user1.account.address),
+      ]);
+      expect(referrerBalance).to.equal(1n * 10n ** 18n); // 1 DCU
+
+      // Check user2's balance (should be 20 DCU for two Impact Product claims)
+      const inviteeBalance = await dcuRewardManager.read.getBalance([
+        getAddress(user2.account.address),
+      ]);
+      expect(inviteeBalance).to.equal(20n * 10n ** 18n); // 20 DCU
     });
   });
 
   describe("Reward Claiming", function () {
-    it("Should allow user to claim rewards", async function () {
-      const {
-        dcuToken,
-        rewardManager,
-        owner,
-        user1,
-        dipClaimReward,
-        referralReward,
-      } = await loadFixture(deployRewardManagerFixture);
-
-      // Add rewards to user1
-      await rewardManager.write.rewardDipClaim(
-        [getAddress(user1.account.address)],
-        {
-          account: owner.account,
-        }
-      );
-      await rewardManager.write.rewardReferral(
-        [getAddress(user1.account.address)],
-        {
-          account: owner.account,
-        }
+    it("Should allow users to claim their rewards", async function () {
+      const { dcuRewardManager, dcuToken, user1, owner } = await loadFixture(
+        deployContractsFixture
       );
 
-      const initialBalance = await rewardManager.read.getBalance([
-        getAddress(user1.account.address),
-      ]);
-      const claimAmount = 5n * 10n ** 18n; // 5 DCU
-
-      await rewardManager.write.claimRewards([claimAmount], {
-        account: user1.account,
-      });
-
-      // Check user balance in reward manager
-      const newBalance = await rewardManager.read.getBalance([
-        getAddress(user1.account.address),
-      ]);
-      const expectedNewBalance = (initialBalance as bigint) - claimAmount;
-      expect(newBalance).to.equal(expectedNewBalance);
-
-      // Check user DCU token balance
-      const tokenBalance = await dcuToken.read.balanceOf([
-        getAddress(user1.account.address),
-      ]);
-      expect(tokenBalance).to.equal(claimAmount);
-    });
-
-    it("Should revert if user tries to claim more than their balance", async function () {
-      const { rewardManager, owner, user1, dipClaimReward } = await loadFixture(
-        deployRewardManagerFixture
-      );
-
-      // Add some rewards to user1
-      await rewardManager.write.rewardDipClaim(
-        [getAddress(user1.account.address)],
-        {
-          account: owner.account,
-        }
-      );
-
-      const excessAmount = dipClaimReward * 2n; // More than the user has
-
-      await expect(
-        rewardManager.write.claimRewards([excessAmount], {
-          account: user1.account,
-        })
-      ).to.be.rejectedWith("Insufficient balance");
-    });
-  });
-
-  describe("Admin Functions", function () {
-    it("Should allow owner to update reward amounts", async function () {
-      const { rewardManager, owner } = await loadFixture(
-        deployRewardManagerFixture
-      );
-
-      const newDipReward = 20n * 10n ** 18n;
-      const newReferralReward = 10n * 10n ** 18n;
-      const newStreakReward = 5n * 10n ** 18n;
-
-      await rewardManager.write.updateRewardAmounts(
-        [newDipReward, newReferralReward, newStreakReward],
+      // Verify PoI
+      await dcuRewardManager.write.setPoiVerificationStatus(
+        [getAddress(user1.account.address), true],
         { account: owner.account }
       );
 
-      expect(await rewardManager.read.dipClaimReward()).to.equal(newDipReward);
-      expect(await rewardManager.read.referralReward()).to.equal(
-        newReferralReward
-      );
-      expect(await rewardManager.read.streakReward()).to.equal(newStreakReward);
-    });
-
-    it("Should prevent non-owners from updating reward amounts", async function () {
-      const { rewardManager, user1 } = await loadFixture(
-        deployRewardManagerFixture
+      // Reward Impact Product claim
+      await dcuRewardManager.write.rewardImpactProductClaim(
+        [getAddress(user1.account.address), 1n],
+        { account: owner.account }
       );
 
-      await expect(
-        rewardManager.write.updateRewardAmounts(
-          [20n * 10n ** 18n, 10n * 10n ** 18n, 5n * 10n ** 18n],
-          { account: user1.account }
-        )
-      ).to.be.rejected;
-    });
-
-    it("Should prevent non-owners from rewarding users", async function () {
-      const { rewardManager, user1, user2 } = await loadFixture(
-        deployRewardManagerFixture
+      // Claim rewards
+      await dcuRewardManager.write.claimRewards(
+        [
+          10n * 10n ** 18n, // 10 DCU
+        ],
+        { account: user1.account }
       );
 
-      await expect(
-        rewardManager.write.rewardDipClaim(
-          [getAddress(user2.account.address)],
-          {
-            account: user1.account,
-          }
-        )
-      ).to.be.rejected;
+      // Check DCU token balance
+      const tokenBalance = await dcuToken.read.balanceOf([
+        getAddress(user1.account.address),
+      ]);
+      expect(tokenBalance).to.equal(10n * 10n ** 18n); // 10 DCU
+
+      // Check internal balance (should be 0 after claiming)
+      const internalBalance = await dcuRewardManager.read.getBalance([
+        getAddress(user1.account.address),
+      ]);
+      expect(internalBalance).to.equal(0n);
     });
   });
 });
