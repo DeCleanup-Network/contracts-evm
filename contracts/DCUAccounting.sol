@@ -28,13 +28,34 @@ contract DCUAccounting is Ownable {
     bool private _locked;
     
     // Events
-    event Deposit(address indexed user, uint256 amount);
-    event Withdrawal(address indexed user, uint256 amount);
     event EmergencyWithdrawal(address indexed owner, uint256 amount);
     event AddressWhitelisted(address indexed account);
     event AddressRemovedFromWhitelist(address indexed account);
     event TGEStatusChanged(bool completed);
-    event InternalTransfer(address indexed from, address indexed to, uint256 amount);
+    
+    // Consolidated events for better tracking
+    event DCUDeposit(
+        address indexed user,
+        uint256 amount,
+        uint256 newBalance,
+        uint256 timestamp
+    );
+    
+    event DCUWithdrawal(
+        address indexed user,
+        uint256 amount,
+        uint256 newBalance,
+        uint256 timestamp
+    );
+    
+    event DCUInternalTransfer(
+        address indexed from,
+        address indexed to,
+        uint256 amount,
+        uint256 fromNewBalance,
+        uint256 toNewBalance,
+        uint256 timestamp
+    );
     
     /**
      * @dev Modifier to prevent reentrancy attacks
@@ -110,7 +131,13 @@ contract DCUAccounting is Ownable {
         balances[msg.sender] += amount;
         totalDeposits += amount;
         
-        emit Deposit(msg.sender, amount);
+        // Emit consolidated deposit event
+        emit DCUDeposit(
+            msg.sender,
+            amount,
+            balances[msg.sender],
+            block.timestamp
+        );
     }
     
     /**
@@ -126,7 +153,13 @@ contract DCUAccounting is Ownable {
         
         require(dcuToken.transfer(msg.sender, amount), "Transfer failed");
         
-        emit Withdrawal(msg.sender, amount);
+        // Emit consolidated withdrawal event
+        emit DCUWithdrawal(
+            msg.sender,
+            amount,
+            balances[msg.sender],
+            block.timestamp
+        );
     }
     
     /**
@@ -142,7 +175,15 @@ contract DCUAccounting is Ownable {
         balances[msg.sender] -= amount;
         balances[to] += amount;
         
-        emit InternalTransfer(msg.sender, to, amount);
+        // Emit consolidated internal transfer event
+        emit DCUInternalTransfer(
+            msg.sender,
+            to,
+            amount,
+            balances[msg.sender],
+            balances[to],
+            block.timestamp
+        );
     }
     
     /**
@@ -167,7 +208,13 @@ contract DCUAccounting is Ownable {
         balances[user] += amount;
         totalDeposits += amount;
         
-        emit Deposit(user, amount);
+        // Emit consolidated deposit event
+        emit DCUDeposit(
+            user,
+            amount,
+            balances[user],
+            block.timestamp
+        );
     }
     
     /**
@@ -185,7 +232,13 @@ contract DCUAccounting is Ownable {
         
         require(dcuToken.transfer(user, amount), "Transfer failed");
         
-        emit Withdrawal(user, amount);
+        // Emit consolidated withdrawal event
+        emit DCUWithdrawal(
+            user,
+            amount,
+            balances[user],
+            block.timestamp
+        );
     }
     
     /**
