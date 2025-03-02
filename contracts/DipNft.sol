@@ -6,31 +6,115 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
+interface IRewards {
+    function distributeDCU(address user, uint256 amount) external;
+}
+
 contract MyToken is ERC721, Ownable {
-     using Strings for uint256;
+    
+    using Strings for uint256;
     uint256 private _tokenIdCounter;
+    uint256 public constant MAX_LEVEL = 10;
+    address public rewardsContract;
 
-    constructor(address initialOwner)
-        ERC721("DipToken", "Dip")
-        Ownable(initialOwner)
-    {}
+    //mapping(address => bool) public hasToken;
+    
+    mapping(address => uint256) public  userLevel;
 
-    function safeMint(address to, uint256 tokenId) public onlyOwner {
-        _safeMint(to, tokenId);
+    mapping(address => string) public userRanks;
+    mapping(address => bool) public verifiedPOI;
+    mapping(address => bool) public hasMinted;
+    mapping(uint256 => uint256) public nftLevel;
+    mapping(uint256 => uint256) public impactLevel;
+
+    event Minted(address indexed to, uint256 indexed tokenId, uint256 indexed userLevel, uint256 nftlevel);
+    event DCURewards(address indexed to, uint256 indexed amount);
+    event upgrade(address indexed to, uint256 indexed nftevel, uint256 indexed userLevel);
+    event DCURewardTriggered(address indexed to, uint256 indexed amount);
+
+    constructor(address initialOwner) ERC721("DipToken", "Dip") Ownable(msg.sender) {
+ 
     }
 
+    modifier onlyVerifiedPOI(){
+        require(verifiedPOI[msg.sender] == true, "Your are not a verified POI");
+        _;
+    }
+
+    function verifyPOI(address _poi) public onlyOwner {
+        verifiedPOI[_poi] = true;
+    }
+
+    function safeMint(address to, uint256 tokenId) public onlyVerifiedPOI{
+        require(hasMinted[to] == false, "You have already minted a token");
+        
+        tokenId = _tokenIdCounter++;
+        
+        _safeMint(to, tokenId);
+        userLevel[to] =  1;
+        nftLevel[tokenId] = 1;
+        hasMinted[to] = true;
+
+        IRewards(rewardsContract).distributeDCU(to, 10);
+
+        emit Minted(to, tokenId, 1, 1);
+        emit DCURewards(to, 10);
+        
+    }
+
+    function upgradeNFT(uint256 tokenId) external onlyVerifiedPOI {
+        require(hasMinted[msg.sender] == true, "You have not minted a token yet");
+
+        uint256 currentLevel = nftLevel[tokenId];
+        require(currentLevel < MAX_LEVEL, "You have reached the maximum level");
+
+        nftLevel[tokenId] += 1;
+        userLevel[msg.sender] += 1;
+
+
+        IRewards(rewardsContract).distributeDCU(msg.sender, 10);
+        emit upgrade(msg.sender, nftLevel[tokenId], userLevel[msg.sender]);
+        emit DCURewardTriggered(msg.sender, 10);
+    }
+
+    
+    function getUserNFTData(address user) external view returns (uint256 tokenId, uint256 impact, uint256 level) {
+        require(hasMinted[user], "User has no NFT");
+
+        for (uint256 i = 0; i < _tokenIdCounter; i++) {
+            if (ownerOf(i) == user) {
+                return (i, impactLevel[i], nftLevel[i]);
+            }
+        }
+        revert("No NFT found");
+    }
+
+    function getNFTCategory(uint256 level) external pure returns (string memory) {
+        if(level >=1 && level <=3) return "Newbie";
+        if (level >= 4 && level <= 6) return "Pro";
+        if (level >= 7 && level <= 9) return "Hero";
+        if (level == 10) return "Guardian";
+        return "Invalid";
+    }
+
+   
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         require(ownerOf(tokenId) != address(0), "Token does not exist");
 
         string memory name = string(abi.encodePacked("DipToken #", tokenId.toString()));
-        string memory description = "This is an on-chain NFT";
-        string memory image = generateBase64Image();
+        string memory description = "This is an on-chain NFT with impact level progression.";
+        string memory levelStr = nftLevel[tokenId].toString();
+        string memory impactStr = impactLevel[tokenId].toString();
+        string memory category = this.getNFTCategory(nftLevel[tokenId]);
 
         string memory json = string(
             abi.encodePacked(
                 '{"name":"', name, '",',
                 '"description":"', description, '",',
-                '"image":"', image, '"}'
+                '"attributes":[{"trait_type":"Impact Level","value":"', impactStr, '"},',
+                '{"trait_type":"NFT Level","value":"', levelStr, '"},',
+                '{"trait_type":"Category","value":"', category, '"}],',
+                '"image":"', generateBase64Image(), '"}'
             )
         );
 
