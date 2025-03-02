@@ -19,12 +19,22 @@ contract DCUToken is ERC20, Ownable {
         uint256 newBalance,
         uint256 timestamp
     );
-    
-    constructor() ERC20("DCU Token", "DCU") Ownable(msg.sender) {
+    address public immutable rewardLogicContract;
+    uint256 public immutable maxSupply;
+    constructor(address _rewardLogicContract, uint256 _maxSupply) ERC20("DCU Token", "DCU") Ownable(msg.sender) {
         // Initial supply can be minted here if needed
+        require(_rewardLogicContract != address(0), "Invalid RewardLogic address");
+        rewardLogicContract = _rewardLogicContract;
+        maxSupply = _maxSupply;
+    }
+    // Modifier to restrict minting to only RewardLogic contract
+    modifier onlyRewardLogic() {
+    require(msg.sender == rewardLogicContract, "Only RewardLogic Contract can mint");
+    _;
     }
 
-    function mint(address to, uint256 amount) external onlyOwner returns (bool) {
+    function mint(address to, uint256 amount) external onlyRewardLogic returns (bool) {
+        require(totalSupply() + amount <= maxSupply, "Max supply reached");
         _mint(to, amount);
         
         // Emit detailed minting event
