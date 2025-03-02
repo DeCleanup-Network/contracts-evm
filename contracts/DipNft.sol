@@ -122,14 +122,15 @@ contract MyToken is ERC721, Ownable {
     }
 
     function generateBase64Image() internal pure returns (string memory) {
-        string memory svg = '<svg width="200" height="60" xmlns="http://www.w3.org/2000/svg"><style>'
-                            'text { paint-order: stroke; stroke: white; stroke-width: 2px; fill: black; text-anchor: middle; dominant-baseline: central; }</style>'
-                            '<defs><linearGradient id="gradient" x1="0%" x2="100%" y1="0%" y2="0%">'
-                            '<stop offset="0%" stop-color="#00ff6e"/>'
-                            '<stop offset="100%" stop-color="#f4774e"/></linearGradient></defs>'
-                            '<rect width="100%" height="100%" rx="10" ry="10" fill="url(#gradient)"/>'
-                            '<text x="50%" y="50%" font-size="21px">Chinonso</text>'
-                            '</svg>';
+        //Please include the SVG string here
+        // string memory svg = '<svg width="200" height="60" xmlns="http://www.w3.org/2000/svg"><style>'
+        //                     'text { paint-order: stroke; stroke: white; stroke-width: 2px; fill: black; text-anchor: middle; dominant-baseline: central; }</style>'
+        //                     '<defs><linearGradient id="gradient" x1="0%" x2="100%" y1="0%" y2="0%">'
+        //                     '<stop offset="0%" stop-color="#00ff6e"/>'
+        //                     '<stop offset="100%" stop-color="#f4774e"/></linearGradient></defs>'
+        //                     '<rect width="100%" height="100%" rx="10" ry="10" fill="url(#gradient)"/>'
+        //                     '<text x="50%" y="50%" font-size="21px">Chinonso</text>'
+        //                     '</svg>';
 
         return string(abi.encodePacked("data:image/svg+xml;base64,", Base64.encode(bytes(svg))));
     }
