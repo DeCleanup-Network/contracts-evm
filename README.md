@@ -1,5 +1,7 @@
 # 🚀 DeCleanup Network – Smart Contracts Repository  
 
+![Test and Coverage](https://github.com/DeCleanup/contracts/workflows/Test%20and%20Coverage/badge.svg)
+
 ## 🔹 Overview  
 This repository contains the **smart contract infrastructure for DeCleanup Network**, responsible for:  
 ✅ **Minting & upgrading Dynamic Impact Products (dIP NFTs).**  
@@ -62,3 +64,33 @@ To ensure **scalability and upgradeability**, the system is structured with **fo
 - **Keep contract logic modular** to ensure easy upgradeability in future phases.  
 - **Optimize gas usage** when handling NFT upgrades and reward claims.  
 - Discuss **contract changes in GitHub Issues** before submitting PRs.  
+
+## 🧪 Testing and Coverage
+
+### Running Tests
+To run the test suite:
+```bash
+npm test
+```
+
+To run tests for a specific contract:
+```bash
+npx hardhat test test/DipNft.test.ts
+```
+
+### Test Coverage
+To generate a test coverage report:
+```bash
+SOLIDITY_COVERAGE=true npm run test:coverage
+```
+
+This will generate a detailed coverage report in the `coverage/` directory and display a summary in the console.
+
+Our coverage requirements:
+- Statements: 85%
+- Branches: 60%
+- Functions: 80%
+- Lines: 85%
+
+### Continuous Integration
+We use GitHub Actions to automatically run tests and check coverage on pull requests and pushes to the master branch. Pull requests that don't meet the minimum coverage thresholds will be flagged and blocked from merging.
