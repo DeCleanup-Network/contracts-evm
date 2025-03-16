@@ -88,11 +88,6 @@ jobs:
           OVERALL=$(node -e "console.log(Math.round(($STATEMENTS + $BRANCHES + $FUNCTIONS + $LINES) / 4))")
           echo "OVERALL=$OVERALL" >> $GITHUB_ENV
 
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v3
-        with:
-          name: coverage-report
-          path: coverage/
           
       - name: Comment PR with coverage results
         if: github.event_name == 'pull_request'
