@@ -8,7 +8,14 @@ describe("DCUAccounting", function () {
     const [owner, user1, user2] = await hre.viem.getWalletClients();
     const publicClient = await hre.viem.getPublicClient();
 
-    const dcuToken = await hre.viem.deployContract("DCUToken");
+    // Deploy DCUToken with the owner as the reward logic address
+    const rewardLogicAddress = owner.account.address;
+    const maxSupply = 1000000n * 10n ** 18n; // 1 million tokens with 18 decimals
+    const dcuToken = await hre.viem.deployContract("DCUToken", [
+      rewardLogicAddress,
+      maxSupply,
+    ]);
+
     const dcuAccounting = await hre.viem.deployContract("DCUAccounting", [
       dcuToken.address,
     ]);

@@ -10,8 +10,12 @@ describe("Reward Events", function () {
     const user1Address = user1.account.address;
     const user2Address = user2.account.address;
 
-    // Deploy DCU Token
-    const dcuToken = await hre.viem.deployContract("DCUToken");
+    // Deploy DCU Token with the deployer as the temporary reward logic
+    const maxSupply = 1000000n * 10n ** 18n; // 1 million tokens with 18 decimals
+    const dcuToken = await hre.viem.deployContract("DCUToken", [
+      deployerAddress, // Use the deployer as the temporary reward logic
+      maxSupply,
+    ]);
 
     // Deploy NFT Collection
     const nftCollection = await hre.viem.deployContract("NFTCollection");
@@ -20,6 +24,9 @@ describe("Reward Events", function () {
     const dcuRewardManager = await hre.viem.deployContract("DCURewardManager", [
       dcuToken.address,
     ]);
+
+    // Update the reward logic contract address in DCUToken to DCURewardManager
+    await dcuToken.write.updateRewardLogicContract([dcuRewardManager.address]);
 
     // Deploy DCU Accounting
     const dcuAccounting = await hre.viem.deployContract("DCUAccounting", [
