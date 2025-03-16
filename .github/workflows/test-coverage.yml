@@ -1,0 +1,113 @@
+name: Test and Coverage
+
+on:
+  pull_request:
+    branches: [ master ]
+  push:
+    branches: [ master ]
+
+jobs:
+  test:
+    name: Test and Coverage
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install bc
+        run: sudo apt-get install -y bc
+
+      - name: Compile contracts
+        run: npm run compile
+
+      - name: Run tests
+        run: npm test
+
+      - name: Run coverage
+        run: SOLIDITY_COVERAGE=true npm run test:coverage
+
+      - name: Check coverage thresholds
+        id: coverage
+        run: |
+          # Extract coverage percentages from coverage.json
+          STATEMENTS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('./coverage.json')).total.statements.pct)")
+          BRANCHES=$(node -e "console.log(JSON.parse(require('fs').readFileSync('./coverage.json')).total.branches.pct)")
+          FUNCTIONS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('./coverage.json')).total.functions.pct)")
+          LINES=$(node -e "console.log(JSON.parse(require('fs').readFileSync('./coverage.json')).total.lines.pct)")
+          
+          # Define minimum thresholds
+          MIN_STATEMENTS=85
+          MIN_BRANCHES=60
+          MIN_FUNCTIONS=80
+          MIN_LINES=85
+          
+          # Export variables for later steps
+          echo "STATEMENTS=$STATEMENTS" >> $GITHUB_ENV
+          echo "BRANCHES=$BRANCHES" >> $GITHUB_ENV
+          echo "FUNCTIONS=$FUNCTIONS" >> $GITHUB_ENV
+          echo "LINES=$LINES" >> $GITHUB_ENV
+          echo "MIN_STATEMENTS=$MIN_STATEMENTS" >> $GITHUB_ENV
+          echo "MIN_BRANCHES=$MIN_BRANCHES" >> $GITHUB_ENV
+          echo "MIN_FUNCTIONS=$MIN_FUNCTIONS" >> $GITHUB_ENV
+          echo "MIN_LINES=$MIN_LINES" >> $GITHUB_ENV
+          
+          # Check if coverage meets thresholds using node for comparison
+          if (( $(node -e "console.log($STATEMENTS < $MIN_STATEMENTS ? 1 : 0)") )); then
+            echo "Statement coverage ($STATEMENTS%) is below the minimum threshold ($MIN_STATEMENTS%)"
+            exit 1
+          fi
+          
+          if (( $(node -e "console.log($BRANCHES < $MIN_BRANCHES ? 1 : 0)") )); then
+            echo "Branch coverage ($BRANCHES%) is below the minimum threshold ($MIN_BRANCHES%)"
+            exit 1
+          fi
+          
+          if (( $(node -e "console.log($FUNCTIONS < $MIN_FUNCTIONS ? 1 : 0)") )); then
+            echo "Function coverage ($FUNCTIONS%) is below the minimum threshold ($MIN_FUNCTIONS%)"
+            exit 1
+          fi
+          
+          if (( $(node -e "console.log($LINES < $MIN_LINES ? 1 : 0)") )); then
+            echo "Line coverage ($LINES%) is below the minimum threshold ($MIN_LINES%)"
+            exit 1
+          fi
+          
+          echo "All coverage thresholds passed!"
+          
+          # Calculate overall coverage for summary
+          OVERALL=$(node -e "console.log(Math.round(($STATEMENTS + $BRANCHES + $FUNCTIONS + $LINES) / 4))")
+          echo "OVERALL=$OVERALL" >> $GITHUB_ENV
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: coverage/
+          
+      - name: Comment PR with coverage results
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: coverage-report
+          message: |
+            ## Coverage Report
+            
+            | Metric | Coverage | Threshold | Status |
+            | ------ | -------- | --------- | ------ |
+            | Statements | ${{ env.STATEMENTS }}% | ${{ env.MIN_STATEMENTS }}% | ${{ env.STATEMENTS >= env.MIN_STATEMENTS && '✅' || '❌' }} |
+            | Branches | ${{ env.BRANCHES }}% | ${{ env.MIN_BRANCHES }}% | ${{ env.BRANCHES >= env.MIN_BRANCHES && '✅' || '❌' }} |
+            | Functions | ${{ env.FUNCTIONS }}% | ${{ env.MIN_FUNCTIONS }}% | ${{ env.FUNCTIONS >= env.MIN_FUNCTIONS && '✅' || '❌' }} |
+            | Lines | ${{ env.LINES }}% | ${{ env.MIN_LINES }}% | ${{ env.LINES >= env.MIN_LINES && '✅' || '❌' }} |
+            | **Overall** | **${{ env.OVERALL }}%** | | |
+            
+            [View detailed coverage report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) 
