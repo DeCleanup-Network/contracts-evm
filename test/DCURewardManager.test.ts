@@ -9,15 +9,24 @@ describe("DCURewardManager", function () {
     const [owner, user1, user2, user3] = await hre.viem.getWalletClients();
     const publicClient = await hre.viem.getPublicClient();
 
-    // Deploy DCU token
-    const dcuToken = await hre.viem.deployContract("DCUToken");
+    // Deploy DCU token with owner as temporary reward logic
+    const maxSupply = 1000000n * 10n ** 18n; // 1 million tokens with 18 decimals
+    const dcuToken = await hre.viem.deployContract("DCUToken", [
+      owner.account.address, // Use owner as temporary reward logic
+      maxSupply,
+    ]);
 
     // Deploy DCURewardManager
     const dcuRewardManager = await hre.viem.deployContract("DCURewardManager", [
       dcuToken.address,
     ]);
 
-    // Grant minting rights to DCURewardManager
+    // Update the reward logic contract address in DCUToken to DCURewardManager
+    await dcuToken.write.updateRewardLogicContract([dcuRewardManager.address], {
+      account: owner.account,
+    });
+
+    // Transfer ownership to DCURewardManager for additional management
     await dcuToken.write.transferOwnership([dcuRewardManager.address]);
 
     return {

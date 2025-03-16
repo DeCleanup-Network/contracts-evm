@@ -8,16 +8,27 @@ describe("RewardLogic", function () {
     const [owner, user] = await hre.viem.getWalletClients();
     const publicClient = await hre.viem.getPublicClient();
 
-    const dcuToken = await hre.viem.deployContract("DCUToken");
+    // Deploy NFT collection first
     const nftCollection = await hre.viem.deployContract("NFTCollection");
 
+    // Deploy DCUToken with a temporary reward logic address (owner's address)
+    const maxSupply = 1000000n * 10n ** 18n; // 1 million tokens with 18 decimals
+    const dcuToken = await hre.viem.deployContract("DCUToken", [
+      owner.account.address, // Use owner as temporary reward logic
+      maxSupply,
+    ]);
+
+    // Now deploy the actual RewardLogic contract
     const rewardLogic = await hre.viem.deployContract("RewardLogic", [
       dcuToken.address,
       nftCollection.address,
     ]);
 
-    // Grant minting rights to RewardLogic
-    await dcuToken.write.transferOwnership([rewardLogic.address]);
+    // Update the reward logic contract address in DCUToken
+    await dcuToken.write.updateRewardLogicContract([rewardLogic.address], {
+      account: owner.account,
+    });
+
     // Grant minting rights to owner for NFTs
     await nftCollection.write.transferOwnership([owner.account.address]);
 
