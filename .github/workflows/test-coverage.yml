@@ -36,14 +36,89 @@ jobs:
       - name: Run coverage
         run: SOLIDITY_COVERAGE=true npm run test:coverage
 
+      - name: Upload coverage.json for debugging
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: coverage-json
+          path: coverage.json
+          retention-days: 7
+
       - name: Check coverage thresholds
         id: coverage
         run: |
-          # Extract coverage percentages from coverage.json
-          STATEMENTS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('./coverage.json')).total.statements.pct)")
-          BRANCHES=$(node -e "console.log(JSON.parse(require('fs').readFileSync('./coverage.json')).total.branches.pct)")
-          FUNCTIONS=$(node -e "console.log(JSON.parse(require('fs').readFileSync('./coverage.json')).total.functions.pct)")
-          LINES=$(node -e "console.log(JSON.parse(require('fs').readFileSync('./coverage.json')).total.lines.pct)")
+          # Check if coverage.json exists
+          if [ ! -f "./coverage.json" ]; then
+            echo "Error: coverage.json file not found. Make sure the coverage command generated the file."
+            exit 1
+          fi
+          
+          # Print the structure of coverage.json for debugging
+          echo "Coverage JSON structure:"
+          node -e "console.log(JSON.stringify(Object.keys(JSON.parse(require('fs').readFileSync('./coverage.json'))), null, 2))"
+          
+          # Extract coverage percentages from coverage.json with error handling
+          COVERAGE_DATA=$(node -e "
+            try {
+              const data = JSON.parse(require('fs').readFileSync('./coverage.json'));
+              if (!data.total) {
+                console.log('Error: Missing total property in coverage.json');
+                process.exit(1);
+              }
+              console.log(JSON.stringify(data.total));
+            } catch (error) {
+              console.log('Error parsing coverage.json: ' + error.message);
+              process.exit(1);
+            }
+          ")
+          
+          if [[ $? -ne 0 ]]; then
+            echo "Failed to extract coverage data"
+            exit 1
+          fi
+          
+          # Extract individual metrics with fallbacks
+          STATEMENTS=$(node -e "
+            try {
+              const data = JSON.parse(require('fs').readFileSync('./coverage.json'));
+              console.log(data.total && data.total.statements ? data.total.statements.pct : 0);
+            } catch (error) {
+              console.log(0);
+            }
+          ")
+          
+          BRANCHES=$(node -e "
+            try {
+              const data = JSON.parse(require('fs').readFileSync('./coverage.json'));
+              console.log(data.total && data.total.branches ? data.total.branches.pct : 0);
+            } catch (error) {
+              console.log(0);
+            }
+          ")
+          
+          FUNCTIONS=$(node -e "
+            try {
+              const data = JSON.parse(require('fs').readFileSync('./coverage.json'));
+              console.log(data.total && data.total.functions ? data.total.functions.pct : 0);
+            } catch (error) {
+              console.log(0);
+            }
+          ")
+          
+          LINES=$(node -e "
+            try {
+              const data = JSON.parse(require('fs').readFileSync('./coverage.json'));
+              console.log(data.total && data.total.lines ? data.total.lines.pct : 0);
+            } catch (error) {
+              console.log(0);
+            }
+          ")
+          
+          echo "Extracted coverage metrics:"
+          echo "Statements: $STATEMENTS%"
+          echo "Branches: $BRANCHES%"
+          echo "Functions: $FUNCTIONS%"
+          echo "Lines: $LINES%"
           
           # Define minimum thresholds
           MIN_STATEMENTS=85
@@ -62,22 +137,22 @@ jobs:
           echo "MIN_LINES=$MIN_LINES" >> $GITHUB_ENV
           
           # Check if coverage meets thresholds using node for comparison
-          if (( $(node -e "console.log($STATEMENTS < $MIN_STATEMENTS ? 1 : 0)") )); then
+          if (( $(node -e "console.log(Number($STATEMENTS) < Number($MIN_STATEMENTS) ? 1 : 0)") )); then
             echo "Statement coverage ($STATEMENTS%) is below the minimum threshold ($MIN_STATEMENTS%)"
             exit 1
           fi
           
-          if (( $(node -e "console.log($BRANCHES < $MIN_BRANCHES ? 1 : 0)") )); then
+          if (( $(node -e "console.log(Number($BRANCHES) < Number($MIN_BRANCHES) ? 1 : 0)") )); then
             echo "Branch coverage ($BRANCHES%) is below the minimum threshold ($MIN_BRANCHES%)"
             exit 1
           fi
           
-          if (( $(node -e "console.log($FUNCTIONS < $MIN_FUNCTIONS ? 1 : 0)") )); then
+          if (( $(node -e "console.log(Number($FUNCTIONS) < Number($MIN_FUNCTIONS) ? 1 : 0)") )); then
             echo "Function coverage ($FUNCTIONS%) is below the minimum threshold ($MIN_FUNCTIONS%)"
             exit 1
           fi
           
-          if (( $(node -e "console.log($LINES < $MIN_LINES ? 1 : 0)") )); then
+          if (( $(node -e "console.log(Number($LINES) < Number($MIN_LINES) ? 1 : 0)") )); then
             echo "Line coverage ($LINES%) is below the minimum threshold ($MIN_LINES%)"
             exit 1
           fi
@@ -85,10 +160,17 @@ jobs:
           echo "All coverage thresholds passed!"
           
           # Calculate overall coverage for summary
-          OVERALL=$(node -e "console.log(Math.round(($STATEMENTS + $BRANCHES + $FUNCTIONS + $LINES) / 4))")
+          OVERALL=$(node -e "console.log(Math.round((Number($STATEMENTS) + Number($BRANCHES) + Number($FUNCTIONS) + Number($LINES)) / 4))")
           echo "OVERALL=$OVERALL" >> $GITHUB_ENV
 
-          
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
       - name: Comment PR with coverage results
         if: github.event_name == 'pull_request'
         uses: marocchino/sticky-pull-request-comment@v2
