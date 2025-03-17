@@ -1,4 +1,7 @@
 name: Test and Coverage
+# This workflow requires a secret named PR_COMMENT_TOKEN to be set in the repository settings.
+# This should be a Personal Access Token (PAT) with the 'repo' scope.
+# See: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
 
 on:
   pull_request:
@@ -102,8 +105,11 @@ jobs:
       - name: Comment PR with coverage results
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v6
+        id: github-script-comment
+        continue-on-error: true
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Use a PAT instead of GITHUB_TOKEN
+          github-token: ${{ secrets.PR_COMMENT_TOKEN }}
           script: |
             const issue_number = context.issue.number;
             const owner = context.repo.owner;
@@ -140,25 +146,14 @@ jobs:
 =======
             [View detailed coverage report](https://github.com/${owner}/${repo}/actions/runs/${context.runId})`;
             
-            // Find existing comment
-            const comments = await github.rest.issues.listComments({
-              owner,
-              repo,
-              issue_number
-            });
-            
-            const coverageComment = comments.data.find(comment => 
-              comment.body.includes('## Coverage Report')
-            );
-            
-            if (coverageComment) {
-              // Update existing comment
-              await github.rest.issues.updateComment({
+            try {
+              // Find existing comment
+              const comments = await github.rest.issues.listComments({
                 owner,
                 repo,
-                comment_id: coverageComment.id,
-                body
+                issue_number
               });
+<<<<<<< HEAD
             } else {
               // Create new comment
               await github.rest.issues.createComment({
@@ -169,3 +164,101 @@ jobs:
               });
             } 
 >>>>>>> a2d02e7 (feat: Update GitHub Actions workflow to enhance coverage reporting with improved permissions and dynamic comment handling)
+=======
+              
+              const coverageComment = comments.data.find(comment => 
+                comment.body.includes('## Coverage Report')
+              );
+              
+              if (coverageComment) {
+                // Update existing comment
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: coverageComment.id,
+                  body
+                });
+                console.log(`Updated existing comment ID: ${coverageComment.id}`);
+              } else {
+                // Create new comment
+                const response = await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number,
+                  body
+                });
+                console.log(`Created new comment ID: ${response.data.id}`);
+              }
+            } catch (error) {
+              console.error('Error posting comment:', error);
+              // Continue workflow even if comment fails
+              core.setFailed('Failed to post comment');
+            }
+      
+      # Fallback method if the github-script action fails
+      - name: Find Comment
+        if: github.event_name == 'pull_request' && steps.github-script-comment.outcome == 'failure'
+        uses: peter-evans/find-comment@v2
+        id: find-comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: '## Coverage Report'
+
+      - name: Fallback - Comment PR with coverage results
+        if: github.event_name == 'pull_request' && steps.github-script-comment.outcome == 'failure'
+        uses: peter-evans/create-or-update-comment@v2
+        id: fallback-comment
+        continue-on-error: true
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            ## Coverage Report
+            
+            | Metric | Coverage | Threshold | Status |
+            | ------ | -------- | --------- | ------ |
+            | Statements | ${{ env.STATEMENTS }}% | ${{ env.MIN_STATEMENTS }}% | ${{ env.STATEMENTS >= env.MIN_STATEMENTS && '✅' || '❌' }} |
+            | Branches | ${{ env.BRANCHES }}% | ${{ env.MIN_BRANCHES }}% | ${{ env.BRANCHES >= env.MIN_BRANCHES && '✅' || '❌' }} |
+            | Functions | ${{ env.FUNCTIONS }}% | ${{ env.MIN_FUNCTIONS }}% | ${{ env.FUNCTIONS >= env.MIN_FUNCTIONS && '✅' || '❌' }} |
+            | Lines | ${{ env.LINES }}% | ${{ env.MIN_LINES }}% | ${{ env.LINES >= env.MIN_LINES && '✅' || '❌' }} |
+            | **Overall** | **${{ env.OVERALL }}%** | | |
+            
+            [View detailed coverage report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          edit-mode: replace
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          
+      # Final fallback - just output to the workflow log
+      - name: Output coverage results to log
+        if: github.event_name == 'pull_request' && (steps.github-script-comment.outcome == 'failure' && steps.fallback-comment.outcome == 'failure')
+        run: |
+          echo "## Coverage Report"
+          echo ""
+          echo "| Metric | Coverage | Threshold | Status |"
+          echo "| ------ | -------- | --------- | ------ |"
+          
+          STATEMENTS_STATUS="❌"
+          if (( $(echo "$STATEMENTS >= $MIN_STATEMENTS" | bc -l) )); then
+            STATEMENTS_STATUS="✅"
+          fi
+          
+          BRANCHES_STATUS="❌"
+          if (( $(echo "$BRANCHES >= $MIN_BRANCHES" | bc -l) )); then
+            BRANCHES_STATUS="✅"
+          fi
+          
+          FUNCTIONS_STATUS="❌"
+          if (( $(echo "$FUNCTIONS >= $MIN_FUNCTIONS" | bc -l) )); then
+            FUNCTIONS_STATUS="✅"
+          fi
+          
+          LINES_STATUS="❌"
+          if (( $(echo "$LINES >= $MIN_LINES" | bc -l) )); then
+            LINES_STATUS="✅"
+          fi
+          
+          echo "| Statements | ${STATEMENTS}% | ${MIN_STATEMENTS}% | ${STATEMENTS_STATUS} |"
+          echo "| Branches | ${BRANCHES}% | ${MIN_BRANCHES}% | ${BRANCHES_STATUS} |"
+          echo "| Functions | ${FUNCTIONS}% | ${MIN_FUNCTIONS}% | ${FUNCTIONS_STATUS} |"
+          echo "| Lines | ${LINES}% | ${MIN_LINES}% | ${LINES_STATUS} |"
+          echo "| **Overall** | **${OVERALL}%** | | |" 
+>>>>>>> 7304216 (feat: Update GitHub Actions workflow to enhance coverage reporting with improved permissions and dynamic comment handling)
