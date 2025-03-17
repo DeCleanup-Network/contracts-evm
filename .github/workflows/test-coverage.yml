@@ -6,6 +6,11 @@ on:
   push:
     branches: [ master ]
 
+# Add permissions for the GitHub token
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   test:
     name: Test and Coverage
@@ -96,18 +101,71 @@ jobs:
           
       - name: Comment PR with coverage results
         if: github.event_name == 'pull_request'
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: actions/github-script@v6
         with:
-          header: coverage-report
-          message: |
-            ## Coverage Report
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issue_number = context.issue.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            
+            const statements = process.env.STATEMENTS;
+            const branches = process.env.BRANCHES;
+            const functions = process.env.FUNCTIONS;
+            const lines = process.env.LINES;
+            const overall = process.env.OVERALL;
+            
+            const minStatements = process.env.MIN_STATEMENTS;
+            const minBranches = process.env.MIN_BRANCHES;
+            const minFunctions = process.env.MIN_FUNCTIONS;
+            const minLines = process.env.MIN_LINES;
+            
+            const statementsStatus = parseFloat(statements) >= parseFloat(minStatements) ? '✅' : '❌';
+            const branchesStatus = parseFloat(branches) >= parseFloat(minBranches) ? '✅' : '❌';
+            const functionsStatus = parseFloat(functions) >= parseFloat(minFunctions) ? '✅' : '❌';
+            const linesStatus = parseFloat(lines) >= parseFloat(minLines) ? '✅' : '❌';
+            
+            const body = `## Coverage Report
             
             | Metric | Coverage | Threshold | Status |
             | ------ | -------- | --------- | ------ |
-            | Statements | ${{ env.STATEMENTS }}% | ${{ env.MIN_STATEMENTS }}% | ${{ env.STATEMENTS >= env.MIN_STATEMENTS && '✅' || '❌' }} |
-            | Branches | ${{ env.BRANCHES }}% | ${{ env.MIN_BRANCHES }}% | ${{ env.BRANCHES >= env.MIN_BRANCHES && '✅' || '❌' }} |
-            | Functions | ${{ env.FUNCTIONS }}% | ${{ env.MIN_FUNCTIONS }}% | ${{ env.FUNCTIONS >= env.MIN_FUNCTIONS && '✅' || '❌' }} |
-            | Lines | ${{ env.LINES }}% | ${{ env.MIN_LINES }}% | ${{ env.LINES >= env.MIN_LINES && '✅' || '❌' }} |
-            | **Overall** | **${{ env.OVERALL }}%** | | |
+            | Statements | ${statements}% | ${minStatements}% | ${statementsStatus} |
+            | Branches | ${branches}% | ${minBranches}% | ${branchesStatus} |
+            | Functions | ${functions}% | ${minFunctions}% | ${functionsStatus} |
+            | Lines | ${lines}% | ${minLines}% | ${linesStatus} |
+            | **Overall** | **${overall}%** | | |
             
+<<<<<<< HEAD
             [View detailed coverage report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) 
+=======
+            [View detailed coverage report](https://github.com/${owner}/${repo}/actions/runs/${context.runId})`;
+            
+            // Find existing comment
+            const comments = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number
+            });
+            
+            const coverageComment = comments.data.find(comment => 
+              comment.body.includes('## Coverage Report')
+            );
+            
+            if (coverageComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: coverageComment.id,
+                body
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body
+              });
+            } 
+>>>>>>> a2d02e7 (feat: Update GitHub Actions workflow to enhance coverage reporting with improved permissions and dynamic comment handling)
