@@ -309,19 +309,12 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         emit RewardDistributed(user, REWARD_AMOUNT, level);
     }
 
-    /**
-     * @dev Hook that is called before any token transfer. This includes minting and burning.
-     * Automatically maintains the _userTokens mapping to track token ownership.
-     * @param from The address transferring the token (address(0) for minting)
-     * @param to The address receiving the token (address(0) for burning)
-     * @param tokenId The ID of the token being transferred
-     */
-    function _beforeTokenTransfer(
-        address from,
+    function _update(
         address to,
-        uint256 tokenId
-    ) internal override {
-        super._beforeTokenTransfer(from, to, tokenId);
+        uint256 tokenId,
+        address auth
+    ) internal virtual override(ERC721) returns (address) {
+        address from = super._update(to, tokenId, auth);
 
         if (from != address(0)) {
             // Remove the token from the previous owner
@@ -332,6 +325,8 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
             // Assign the token to the new owner
             _userTokenIds[to] = tokenId;
         }
+
+        return from;
     }
 
     /**
