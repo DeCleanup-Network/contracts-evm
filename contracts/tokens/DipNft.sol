@@ -122,10 +122,6 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         _authorizedRecipient[tokenId] = address(0);
 
         super.transferFrom(from, to, tokenId);
-
-        // Update token ID mappings
-        if (from != address(0)) _userTokenIds[from] = 0;
-        if (to != address(0)) _userTokenIds[to] = tokenId;
     }
 
     /**
