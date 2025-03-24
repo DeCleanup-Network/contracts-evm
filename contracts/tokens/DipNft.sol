@@ -309,6 +309,14 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         emit RewardDistributed(user, REWARD_AMOUNT, level);
     }
 
+    /**
+     * @dev Hook that is called during any token transfer. This includes minting and burning.
+     * Automatically maintains the _userTokenIds mapping to track token ownership.
+     * @param to The address receiving the token (address(0) for burning)
+     * @param tokenId The token ID being transferred
+     * @param auth The address that initiated the transfer
+     * @return address The address that previously owned the token (address(0) for minting)
+     */
     function _update(
         address to,
         uint256 tokenId,
