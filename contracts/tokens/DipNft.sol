@@ -314,6 +314,31 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     }
 
     /**
+     * @dev Hook that is called before any token transfer. This includes minting and burning.
+     * Automatically maintains the _userTokens mapping to track token ownership.
+     * @param from The address transferring the token (address(0) for minting)
+     * @param to The address receiving the token (address(0) for burning)
+     * @param tokenId The ID of the token being transferred
+     */
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 tokenId
+    ) internal override {
+        super._beforeTokenTransfer(from, to, tokenId);
+
+        if (from != address(0)) {
+            // Remove the token from the previous owner
+            delete _userTokens[from];
+        }
+
+        if (to != address(0)) {
+            // Assign the token to the new owner
+            _userTokens[to] = tokenId;
+        }
+    }
+
+    /**
      * @dev Update the impact level of an NFT
      * @param tokenId The ID of the token to update
      * @param newImpactLevel The new impact level
@@ -340,8 +365,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         require(hasMinted[user], "User has no NFT");
 
         tokenId = _userTokenIds[user];
-        require(tokenId != 0 && _exists(tokenId), "No NFT found");
-        require(ownerOf(tokenId) == user, "NFT ownership mismatch");
+        require(_ownerOf(tokenId) == user, "No NFT found");
 
         return (tokenId, impactLevel[tokenId], nftLevel[tokenId]);
     }
