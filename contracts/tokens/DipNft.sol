@@ -13,6 +13,7 @@ import "../DCURewardManager.sol";
 /**
  * @title DipNft
  * @dev NFT contract for the Dip platform with level progression and rewards
+ * Implements soulbound (non-transferable) tokens with admin-approved transfer capabilities
  */
 contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     using Strings for uint256;
@@ -20,10 +21,15 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     // Constants
     uint256 public constant MAX_LEVEL = 10;
     uint256 public constant REWARD_AMOUNT = 10; // Amount of DCU to reward
+    string public constant SOULBOUND_NOTICE = "This is a soulbound NFT representing your personal environmental impact.";
     
     // State variables
     uint256 private _tokenIdCounter;
     address public rewardsContract;
+    
+    // Soulbound transfer authorization mappings
+    mapping(uint256 => bool) private _transferAuthorized;
+    mapping(uint256 => address) private _authorizedRecipient;
     
     // Mappings
     mapping(address => uint256) public userLevel;
@@ -41,6 +47,11 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     event POIVerified(address indexed user);
     event ImpactLevelUpdated(uint256 indexed tokenId, uint256 indexed newLevel);
     event RewardDistributed(address indexed to, uint256 indexed amount, uint256 indexed level);
+    
+    // Soulbound events
+    event TransferAuthorized(uint256 indexed tokenId, address indexed from, address indexed to);
+    event TransferAuthorizationRevoked(uint256 indexed tokenId);
+    event NFTTransferredByAdmin(uint256 indexed tokenId, address indexed from, address indexed to);
 
     /**
      * @dev Constructor initializes the NFT collection
@@ -66,6 +77,40 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     }
 
     /**
+     * @dev Restricts transfers to implement soulbound functionality
+     */
+    function transferFrom(address from, address to, uint256 tokenId) public virtual override (ERC721, IERC721) {
+        // Check if this is an authorized transfer
+        require(
+            _transferAuthorized[tokenId] && to == _authorizedRecipient[tokenId],
+            "DipNft: transfers are restricted (soulbound NFT)"
+        );
+        
+        // Reset authorization after transfer
+        _transferAuthorized[tokenId] = false;
+        _authorizedRecipient[tokenId] = address(0);
+        
+        super.transferFrom(from, to, tokenId);
+    }
+    
+    /**
+     * @dev Restricts safe transfers to implement soulbound functionality
+     */
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data) public override (ERC721, IERC721) {
+        // Check if this is an authorized transfer
+        require(
+            _transferAuthorized[tokenId] && to == _authorizedRecipient[tokenId],
+            "DipNft: transfers are restricted (soulbound NFT)"
+        );
+        
+        // Reset authorization after transfer
+        _transferAuthorized[tokenId] = false;
+        _authorizedRecipient[tokenId] = address(0);
+        
+        super.safeTransferFrom(from, to, tokenId, data);
+    }
+
+    /**
      * @dev Set the rewards contract address
      * @param _rewardsContract The address of the rewards contract
      */
@@ -84,6 +129,66 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         require(_poi != address(0), "Invalid address");
         verifiedPOI[_poi] = true;
         emit POIVerified(_poi);
+    }
+    
+    /**
+     * @dev Authorize a specific NFT transfer (admin only)
+     * @param tokenId The token ID to authorize for transfer
+     * @param to The recipient address for the authorized transfer
+     */
+    function authorizeTransfer(uint256 tokenId, address to) external onlyOwner {
+        require(_exists(tokenId), "Token does not exist");
+        require(to != address(0), "Invalid recipient");
+        
+        _transferAuthorized[tokenId] = true;
+        _authorizedRecipient[tokenId] = to;
+        
+        emit TransferAuthorized(tokenId, ownerOf(tokenId), to);
+    }
+
+    /**
+     * @dev Revoke a previously authorized transfer (admin only)
+     * @param tokenId The token ID to revoke transfer authorization for
+     */
+    function revokeTransferAuthorization(uint256 tokenId) external onlyOwner {
+        require(_exists(tokenId), "Token does not exist");
+        require(_transferAuthorized[tokenId], "Transfer not authorized");
+        
+        _transferAuthorized[tokenId] = false;
+        _authorizedRecipient[tokenId] = address(0);
+        
+        emit TransferAuthorizationRevoked(tokenId);
+    }
+
+    /**
+     * @dev Check if a transfer is authorized for a token
+     * @param tokenId The token ID to check authorization for
+     * @return authorized Whether the transfer is authorized
+     * @return recipient The authorized recipient address
+     */
+    function isTransferAuthorized(uint256 tokenId) external view returns (bool authorized, address recipient) {
+        return (_transferAuthorized[tokenId], _authorizedRecipient[tokenId]);
+    }
+
+    /**
+     * @dev Admin-approved transfer of an NFT (for wallet recovery, etc.)
+     * @param tokenId The token ID to transfer
+     * @param to The recipient address
+     */
+    function adminTransfer(uint256 tokenId, address to) external onlyOwner {
+        require(_exists(tokenId), "Token does not exist");
+        require(to != address(0), "Invalid recipient");
+        
+        address currentOwner = ownerOf(tokenId);
+        
+        // Temporarily authorize the transfer
+        _transferAuthorized[tokenId] = true;
+        _authorizedRecipient[tokenId] = to;
+        
+        // Transfer the token
+        _transfer(currentOwner, to, tokenId);
+        
+        emit NFTTransferredByAdmin(tokenId, currentOwner, to);
     }
 
     /**
@@ -213,7 +318,10 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         require(_exists(tokenId), "Token does not exist");
 
         string memory name = string(abi.encodePacked("DipNFT #", tokenId.toString()));
-        string memory description = "This is an on-chain NFT with impact level progression.";
+        string memory description = string(abi.encodePacked(
+            "This is an on-chain NFT with impact level progression. ", 
+            SOULBOUND_NOTICE
+        ));
         string memory levelStr = nftLevel[tokenId].toString();
         string memory impactStr = impactLevel[tokenId].toString();
         string memory category = this.getNFTCategory(nftLevel[tokenId]);
@@ -224,7 +332,8 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
                 '"description":"', description, '",',
                 '"attributes":[{"trait_type":"Impact Level","value":"', impactStr, '"},',
                 '{"trait_type":"NFT Level","value":"', levelStr, '"},',
-                '{"trait_type":"Category","value":"', category, '"}],',
+                '{"trait_type":"Category","value":"', category, '"},',
+                '{"trait_type":"Soulbound","value":"Yes"}],',
                 '"image":"', generateSVG(tokenId), '"}'
             )
         );
@@ -268,6 +377,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
             '<rect width="100%" height="100%" rx="10" ry="10" fill="url(#gradient)"/>',
             '<text x="50%" y="40%" font-size="24px" text-anchor="middle" fill="white">DipNFT Level ', levelText, '</text>',
             '<text x="50%" y="60%" font-size="18px" text-anchor="middle" fill="white">Category: ', categoryText, '</text>',
+            '<text x="50%" y="80%" font-size="12px" text-anchor="middle" fill="white">Soulbound Token</text>',
             '</svg>'
         ));
 

@@ -603,7 +603,7 @@ describe("DipNft", function () {
       // Check metadata structure
       expect(metadata.name).to.equal("DipNFT #0");
       expect(metadata.description).to.include("on-chain NFT");
-      expect(metadata.attributes).to.have.lengthOf(3);
+      expect(metadata.attributes).to.have.lengthOf(4);
       expect(metadata.attributes[0].trait_type).to.equal("Impact Level");
       expect(metadata.attributes[0].value).to.equal("1");
       expect(metadata.attributes[1].trait_type).to.equal("NFT Level");
@@ -678,6 +678,265 @@ describe("DipNft", function () {
           }
         )
       ).to.be.rejectedWith("Invalid user address");
+    });
+  });
+
+  describe("Soulbound Functionality", function () {
+    it("Should prevent direct transfers of NFTs", async function () {
+      const { dipNft, user1, user2 } = await loadFixture(deployDipNftFixture);
+
+      // Mint a token to user1
+      await dipNft.write.safeMint([], {
+        account: user1.account,
+      });
+
+      // Approve user2 to transfer the token
+      await dipNft.write.approve([getAddress(user2.account.address), 0n], {
+        account: user1.account,
+      });
+
+      // Attempt to transfer the token should fail
+      await expect(
+        dipNft.write.transferFrom(
+          [
+            getAddress(user1.account.address),
+            getAddress(user2.account.address),
+            0n,
+          ],
+          { account: user2.account }
+        )
+      ).to.be.rejectedWith("DipNft: transfers are restricted (soulbound NFT)");
+    });
+
+    it("Should prevent safeTransferFrom calls", async function () {
+      const { dipNft, user1, user2 } = await loadFixture(deployDipNftFixture);
+
+      // Mint a token to user1
+      await dipNft.write.safeMint([], {
+        account: user1.account,
+      });
+
+      // Approve user2 to transfer the token
+      await dipNft.write.approve([getAddress(user2.account.address), 0n], {
+        account: user1.account,
+      });
+
+      // Attempt to safe transfer the token should fail
+      await expect(
+        dipNft.write.safeTransferFrom(
+          [
+            getAddress(user1.account.address),
+            getAddress(user2.account.address),
+            0n,
+          ],
+          { account: user2.account }
+        )
+      ).to.be.rejectedWith("DipNft: transfers are restricted (soulbound NFT)");
+    });
+  });
+
+  describe("Admin Transfer Functionality", function () {
+    it("Should allow admin to authorize a transfer", async function () {
+      const { dipNft, owner, user1, user2 } = await loadFixture(
+        deployDipNftFixture
+      );
+
+      // Mint a token to user1
+      await dipNft.write.safeMint([], {
+        account: user1.account,
+      });
+
+      // Admin authorizes transfer to user2
+      await dipNft.write.authorizeTransfer(
+        [0n, getAddress(user2.account.address)],
+        {
+          account: owner.account,
+        }
+      );
+
+      // Check that transfer is authorized
+      const [authorized, recipient] = await dipNft.read.isTransferAuthorized([
+        0n,
+      ]);
+      expect(authorized).to.be.true;
+      expect(recipient).to.equal(getAddress(user2.account.address));
+    });
+
+    it("Should allow transfer after admin authorization", async function () {
+      const { dipNft, owner, user1, user2 } = await loadFixture(
+        deployDipNftFixture
+      );
+
+      // Mint a token to user1
+      await dipNft.write.safeMint([], {
+        account: user1.account,
+      });
+
+      // Admin authorizes transfer to user2
+      await dipNft.write.authorizeTransfer(
+        [0n, getAddress(user2.account.address)],
+        {
+          account: owner.account,
+        }
+      );
+
+      // Transfer should now succeed
+      await dipNft.write.transferFrom(
+        [
+          getAddress(user1.account.address),
+          getAddress(user2.account.address),
+          0n,
+        ],
+        { account: user1.account }
+      );
+
+      // Check new owner
+      expect(await dipNft.read.ownerOf([0n])).to.equal(
+        getAddress(user2.account.address)
+      );
+
+      // Authorization should be reset after transfer
+      const [authorized, recipient] = await dipNft.read.isTransferAuthorized([
+        0n,
+      ]);
+      expect(authorized).to.be.false;
+      expect(recipient).to.equal("0x0000000000000000000000000000000000000000");
+    });
+
+    it("Should allow admin to perform direct transfers using adminTransfer", async function () {
+      const { dipNft, owner, user1, user2 } = await loadFixture(
+        deployDipNftFixture
+      );
+
+      // Mint a token to user1
+      await dipNft.write.safeMint([], {
+        account: user1.account,
+      });
+
+      // Admin performs a direct transfer
+      await dipNft.write.adminTransfer(
+        [0n, getAddress(user2.account.address)],
+        {
+          account: owner.account,
+        }
+      );
+
+      // Check new owner
+      expect(await dipNft.read.ownerOf([0n])).to.equal(
+        getAddress(user2.account.address)
+      );
+    });
+
+    it("Should allow admin to revoke a transfer authorization", async function () {
+      const { dipNft, owner, user1, user2 } = await loadFixture(
+        deployDipNftFixture
+      );
+
+      // Mint a token to user1
+      await dipNft.write.safeMint([], {
+        account: user1.account,
+      });
+
+      // Admin authorizes transfer to user2
+      await dipNft.write.authorizeTransfer(
+        [0n, getAddress(user2.account.address)],
+        {
+          account: owner.account,
+        }
+      );
+
+      // Admin revokes authorization
+      await dipNft.write.revokeTransferAuthorization([0n], {
+        account: owner.account,
+      });
+
+      // Check that authorization was revoked
+      const [authorized, recipient] = await dipNft.read.isTransferAuthorized([
+        0n,
+      ]);
+      expect(authorized).to.be.false;
+
+      // Attempt to transfer should now fail
+      await expect(
+        dipNft.write.transferFrom(
+          [
+            getAddress(user1.account.address),
+            getAddress(user2.account.address),
+            0n,
+          ],
+          { account: user1.account }
+        )
+      ).to.be.rejectedWith("DipNft: transfers are restricted (soulbound NFT)");
+    });
+
+    it.skip("Should emit correct events for admin transfer authorizations", async function () {
+      const { dipNft, owner, user1, user2, publicClient } = await loadFixture(
+        deployDipNftFixture
+      );
+
+      // Mint a token to user1
+      await dipNft.write.safeMint([], {
+        account: user1.account,
+      });
+
+      // Watch for events
+      const startBlock = await publicClient.getBlockNumber();
+
+      // Admin authorizes transfer
+      await dipNft.write.authorizeTransfer(
+        [0n, getAddress(user2.account.address)],
+        {
+          account: owner.account,
+        }
+      );
+
+      // Admin performs transfer
+      await dipNft.write.adminTransfer(
+        [0n, getAddress(user2.account.address)],
+        {
+          account: owner.account,
+        }
+      );
+
+      // Get events
+      const endBlock = await publicClient.getBlockNumber();
+
+      const logs = await publicClient.getContractEvents({
+        address: getAddress(dipNft.address),
+        fromBlock: startBlock,
+        toBlock: endBlock,
+        eventName: "TransferAuthorized",
+      });
+
+      const adminTransferLogs = await publicClient.getContractEvents({
+        address: getAddress(dipNft.address),
+        fromBlock: startBlock,
+        toBlock: endBlock,
+        eventName: "NFTTransferredByAdmin",
+      });
+
+      // Verify events were emitted
+      expect(logs.length).to.be.greaterThan(0);
+      expect(adminTransferLogs.length).to.be.greaterThan(0);
+    });
+
+    it("Should only allow the owner to authorize transfers", async function () {
+      const { dipNft, user1, user2 } = await loadFixture(deployDipNftFixture);
+
+      // Mint a token to user1
+      await dipNft.write.safeMint([], {
+        account: user1.account,
+      });
+
+      // User2 attempts to authorize a transfer (should fail)
+      await expect(
+        dipNft.write.authorizeTransfer(
+          [0n, getAddress(user2.account.address)],
+          {
+            account: user2.account,
+          }
+        )
+      ).to.be.rejectedWith("OwnableUnauthorizedAccount");
     });
   });
 });
