@@ -1,0 +1,87 @@
+type User @entity {
+  id: ID! # user address
+  tokens: [Token!]! @derivedFrom(field: "owner")
+  totalClaims: Int!
+  totalUpgrades: Int!
+  totalRewards: BigInt!
+  lastActivity: BigInt
+  createdAt: BigInt!
+}
+
+type Token @entity {
+  id: ID! # tokenId
+  tokenId: BigInt!
+  owner: User!
+  level: Int!
+  impactLevel: Int!
+  createdAt: BigInt!
+  lastUpgradedAt: BigInt
+  claims: [NFTClaim!]! @derivedFrom(field: "token")
+  upgrades: [NFTUpgrade!]! @derivedFrom(field: "token")
+}
+
+type NFTClaim @entity {
+  id: ID! # tx hash + log index
+  user: User!
+  token: Token!
+  timestamp: BigInt!
+  rewardAmount: BigInt!
+  transaction: String!
+}
+
+type NFTUpgrade @entity {
+  id: ID! # tx hash + log index
+  user: User!
+  token: Token!
+  oldLevel: Int!
+  newLevel: Int!
+  timestamp: BigInt!
+  rewardAmount: BigInt!
+  transaction: String!
+}
+
+type RewardDistribution @entity {
+  id: ID! # tx hash + log index
+  user: User!
+  amount: BigInt!
+  nftBalance: Int!
+  timestamp: BigInt!
+  transaction: String!
+}
+
+type NFTClaimReward @entity {
+  id: ID! # tx hash + log index
+  user: User!
+  tokenId: BigInt!
+  amount: BigInt!
+  timestamp: BigInt!
+  transaction: String!
+}
+
+type NFTUpgradeReward @entity {
+  id: ID! # tx hash + log index
+  user: User!
+  tokenId: BigInt!
+  newLevel: Int!
+  amount: BigInt!
+  timestamp: BigInt!
+  transaction: String!
+}
+
+type DCUDistribution @entity {
+  id: ID! # tx hash + log index
+  user: User!
+  amount: BigInt!
+  timestamp: BigInt!
+  reason: String!
+  transaction: String!
+}
+
+# This entity can be used to track global statistics
+type Global @entity {
+  id: ID! # always "global"
+  totalNFTsClaimed: Int!
+  totalUpgrades: Int!
+  totalRewardsDistributed: BigInt!
+  lastUpdated: BigInt!
+} 
