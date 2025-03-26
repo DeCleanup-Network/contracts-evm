@@ -22,10 +22,8 @@ dataSources:
         - name: DipNft
           file: ./abis/DipNft.json
       eventHandlers:
-        - event: NFTClaimed(indexed address,indexed uint256,uint256,uint256,uint256)
-          handler: handleNFTClaimed
-        - event: NFTLevelUpgraded(indexed address,indexed uint256,uint256,uint256,uint256,uint256)
-          handler: handleNFTLevelUpgraded
+        - event: NFTEvent(indexed address,indexed uint256,uint256,uint256,uint256,uint256,string)
+          handler: handleNFTEvent
         - event: DCURewards(indexed address,indexed uint256)
           handler: handleDCURewards
         - event: DCURewardTriggered(indexed address,indexed uint256)

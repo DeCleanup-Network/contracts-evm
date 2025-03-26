@@ -1,7 +1,6 @@
 import { BigInt, Address, log } from '@graphprotocol/graph-ts'
 import {
-  NFTClaimed,
-  NFTLevelUpgraded,
+  NFTEvent,
   DCURewards,
   DCURewardTriggered,
   Minted,
@@ -63,79 +62,80 @@ function getOrCreateGlobal(): Global {
   return global
 }
 
-// Handle the NFTClaimed event
-export function handleNFTClaimed(event: NFTClaimed): void {
+// Handle the unified NFTEvent event
+export function handleNFTEvent(event: NFTEvent): void {
   let user = getOrCreateUser(event.params.user)
   let token = getOrCreateToken(event.params.tokenId, event.params.user)
   let global = getOrCreateGlobal()
+  let eventType = event.params.eventType
   
-  // Update user data
-  user.totalClaims += 1
-  user.totalRewards = user.totalRewards.plus(event.params.rewardAmount)
+  // Update user's last activity
   user.lastActivity = event.params.timestamp
-  if (user.createdAt.equals(BigInt.fromI32(0))) {
-    user.createdAt = event.params.timestamp
+  
+  // Update total rewards
+  user.totalRewards = user.totalRewards.plus(event.params.rewardAmount)
+  
+  // Process based on event type
+  if (eventType == "CLAIM") {
+    // This is a new NFT claim
+    user.totalClaims += 1
+    
+    // Update token data
+    token.createdAt = event.params.timestamp
+    
+    // Create claim record
+    let claimId = event.transaction.hash.toHexString() + '-' + event.logIndex.toString()
+    let claim = new NFTClaim(claimId)
+    claim.user = user.id
+    claim.token = token.id
+    claim.timestamp = event.params.timestamp
+    claim.rewardAmount = event.params.rewardAmount
+    claim.transaction = event.transaction.hash.toHexString()
+    
+    // Update global stats
+    global.totalNFTsClaimed += 1
+    global.totalRewardsDistributed = global.totalRewardsDistributed.plus(event.params.rewardAmount)
+    global.lastUpdated = event.params.timestamp
+    
+    // Save claim entity
+    claim.save()
+    
+    // Set user creation time if not set
+    if (user.createdAt.equals(BigInt.fromI32(0))) {
+      user.createdAt = event.params.timestamp
+    }
+  } 
+  else if (eventType == "UPGRADE") {
+    // This is an NFT level upgrade
+    user.totalUpgrades += 1
+    
+    // Update token data
+    token.level = event.params.newLevel.toI32()
+    token.lastUpgradedAt = event.params.timestamp
+    
+    // Create upgrade record
+    let upgradeId = event.transaction.hash.toHexString() + '-' + event.logIndex.toString()
+    let upgrade = new NFTUpgrade(upgradeId)
+    upgrade.user = user.id
+    upgrade.token = token.id
+    upgrade.oldLevel = event.params.oldLevel.toI32()
+    upgrade.newLevel = event.params.newLevel.toI32()
+    upgrade.timestamp = event.params.timestamp
+    upgrade.rewardAmount = event.params.rewardAmount
+    upgrade.transaction = event.transaction.hash.toHexString()
+    
+    // Update global stats
+    global.totalUpgrades += 1
+    global.totalRewardsDistributed = global.totalRewardsDistributed.plus(event.params.rewardAmount)
+    global.lastUpdated = event.params.timestamp
+    
+    // Save upgrade entity
+    upgrade.save()
   }
   
-  // Update token data
-  token.createdAt = event.params.timestamp
-  
-  // Create claim record
-  let claimId = event.transaction.hash.toHexString() + '-' + event.logIndex.toString()
-  let claim = new NFTClaim(claimId)
-  claim.user = user.id
-  claim.token = token.id
-  claim.timestamp = event.params.timestamp
-  claim.rewardAmount = event.params.rewardAmount
-  claim.transaction = event.transaction.hash.toHexString()
-  
-  // Update global stats
-  global.totalNFTsClaimed += 1
-  global.totalRewardsDistributed = global.totalRewardsDistributed.plus(event.params.rewardAmount)
-  global.lastUpdated = event.params.timestamp
-  
-  // Save entities
+  // Save common entities
   user.save()
   token.save()
-  claim.save()
-  global.save()
-}
-
-// Handle the NFTLevelUpgraded event
-export function handleNFTLevelUpgraded(event: NFTLevelUpgraded): void {
-  let user = getOrCreateUser(event.params.user)
-  let token = getOrCreateToken(event.params.tokenId, event.params.user)
-  let global = getOrCreateGlobal()
-  
-  // Update user data
-  user.totalUpgrades += 1
-  user.totalRewards = user.totalRewards.plus(event.params.rewardAmount)
-  user.lastActivity = event.params.timestamp
-  
-  // Update token data
-  token.level = event.params.newLevel.toI32()
-  token.lastUpgradedAt = event.params.timestamp
-  
-  // Create upgrade record
-  let upgradeId = event.transaction.hash.toHexString() + '-' + event.logIndex.toString()
-  let upgrade = new NFTUpgrade(upgradeId)
-  upgrade.user = user.id
-  upgrade.token = token.id
-  upgrade.oldLevel = event.params.oldLevel.toI32()
-  upgrade.newLevel = event.params.newLevel.toI32()
-  upgrade.timestamp = event.params.timestamp
-  upgrade.rewardAmount = event.params.rewardAmount
-  upgrade.transaction = event.transaction.hash.toHexString()
-  
-  // Update global stats
-  global.totalUpgrades += 1
-  global.totalRewardsDistributed = global.totalRewardsDistributed.plus(event.params.rewardAmount)
-  global.lastUpdated = event.params.timestamp
-  
-  // Save entities
-  user.save()
-  token.save()
-  upgrade.save()
   global.save()
 }
 
