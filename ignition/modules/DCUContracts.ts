@@ -16,8 +16,11 @@ export default buildModule("DCUContracts", (m) => {
   // Deploy the RewardLogic contract with DCUStorage and NFTCollection addresses
   const rewardLogic = m.contract("RewardLogic", [dcuStorage, nftCollection]);
 
-  // Deploy the DCURewardManager contract with DCUStorage address
-  const dcuRewardManager = m.contract("DCURewardManager", [dcuStorage]);
+  // Deploy the DCU token with RewardLogic contract address (no max supply parameter anymore)
+  const dcuToken = m.contract("DCUToken", [rewardLogic]);
+
+  // Deploy the DCURewardManager contract with DCUToken address
+  const dcuRewardManager = m.contract("DCURewardManager", [dcuToken]);
 
   // Return all deployed contracts
   return {
@@ -25,6 +28,7 @@ export default buildModule("DCUContracts", (m) => {
     dcuAccounting,
     nftCollection,
     rewardLogic,
+    dcuToken,
     dcuRewardManager,
   };
 });
