@@ -66,6 +66,17 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         uint256 indexed amount,
         uint256 indexed level
     );
+    
+    // Enhanced events for tracking and indexing
+    event NFTEvent(
+        address indexed user,
+        uint256 indexed tokenId,
+        uint256 oldLevel,
+        uint256 newLevel,
+        uint256 timestamp,
+        uint256 rewardAmount,
+        string eventType
+    );
 
     // Soulbound events
     event TransferAuthorized(
@@ -233,6 +244,22 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     }
 
     /**
+     * @dev Process rewards for the user
+     * @param user Address of the user to reward
+     */
+    function _processReward(address user) internal {
+        emit DCURewards(user, REWARD_AMOUNT);
+        
+        if (rewardsContract != address(0)) {
+            try IRewards(rewardsContract).distributeDCU(user, REWARD_AMOUNT) {
+                emit DCURewardTriggered(user, REWARD_AMOUNT);
+            } catch {
+                emit DCURewardTriggered(user, REWARD_AMOUNT);
+            }
+        }
+    }
+
+    /**
      * @dev Mint a new NFT for a verified POI user
      */
     function safeMint() public onlyVerifiedPOI nonReentrant {
@@ -255,12 +282,22 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         impactLevel[tokenId] = 1; // Initialize impact level
         hasMinted[msg.sender] = true;
 
+        // Emit events - legacy and enhanced
         emit Minted(msg.sender, tokenId, 1, 1);
+        
+        // Enhanced event for NFT claim
+        emit NFTEvent(
+            msg.sender,
+            tokenId,
+            0, // No old level for new mint
+            1, // New level is 1
+            block.timestamp,
+            REWARD_AMOUNT,
+            "CLAIM"
+        );
 
-        // Emit reward event - actual rewards will be distributed by the owner
-        if (rewardsContract != address(0)) {
-            emit DCURewards(msg.sender, REWARD_AMOUNT);
-        }
+        // Process reward
+        _processReward(msg.sender);
     }
 
     /**
@@ -278,21 +315,34 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
             "You have reached the maximum level"
         );
 
+        // Store the old level for the event
+        uint256 oldLevel = nftLevel[tokenId];
+
         // Increment levels
         nftLevel[tokenId] += 1;
         userLevel[msg.sender] += 1;
 
+        // Emit standard upgrade event
         emit NFTUpgraded(
             msg.sender,
             tokenId,
             nftLevel[tokenId],
             userLevel[msg.sender]
         );
+        
+        // Enhanced event for NFT upgrade
+        emit NFTEvent(
+            msg.sender,
+            tokenId,
+            oldLevel,
+            nftLevel[tokenId],
+            block.timestamp,
+            REWARD_AMOUNT,
+            "UPGRADE"
+        );
 
-        // Emit reward event - actual rewards will be distributed by the owner
-        if (rewardsContract != address(0)) {
-            emit DCURewardTriggered(msg.sender, REWARD_AMOUNT);
-        }
+        // Process reward
+        _processReward(msg.sender);
     }
 
     /**
