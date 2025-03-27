@@ -18,24 +18,28 @@ import "../DCURewardManager.sol";
 contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     using Strings for uint256;
 
-    // Constants
+    // Constants (these don't use storage slots)
     uint256 public constant MAX_LEVEL = 10;
     uint256 public constant REWARD_AMOUNT = 10; // Amount of DCU to reward
     string public constant SOULBOUND_NOTICE =
         "This is a soulbound NFT representing your personal environmental impact.";
 
-    // State variables
-    uint256 private _tokenIdCounter;
+    // Group address variables (each uses a full slot)
     address public rewardsContract;
 
-    // Soulbound transfer authorization mappings
-    mapping(uint256 => bool) private _transferAuthorized;
-    mapping(uint256 => address) private _authorizedRecipient;
+    // Group uint256 variables (each uses a full slot)
+    uint256 private _tokenIdCounter;
 
-    // Mappings
-    mapping(address => uint256) public userLevel;
+    // Group bool mappings together (these can't share slots in mappings, but organizing for clarity)
     mapping(address => bool) public verifiedPOI;
     mapping(address => bool) public hasMinted;
+    mapping(uint256 => bool) private _transferAuthorized;
+
+    // Group address mappings
+    mapping(uint256 => address) private _authorizedRecipient;
+    
+    // Group uint256 mappings
+    mapping(address => uint256) public userLevel;
     mapping(uint256 => uint256) public nftLevel;
     mapping(uint256 => uint256) public impactLevel;
     mapping(address => uint256) private _userTokenIds;
