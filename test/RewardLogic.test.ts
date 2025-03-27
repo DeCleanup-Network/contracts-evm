@@ -15,7 +15,6 @@ describe("RewardLogic", function () {
     const maxSupply = 1000000n * 10n ** 18n; // 1 million tokens with 18 decimals
     const dcuToken = await hre.viem.deployContract("DCUToken", [
       owner.account.address, // Use owner as temporary reward logic
-      maxSupply,
     ]);
 
     // Now deploy the actual RewardLogic contract

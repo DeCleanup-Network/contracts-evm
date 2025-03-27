@@ -16,17 +16,6 @@ The workflow file is already set up in `.github/workflows/test-coverage.yml`. It
 3. Check if coverage meets the minimum thresholds
 4. Comment on the pull request with the coverage results
 
-## Error Handling
-
-The workflow includes robust error handling to deal with potential issues:
-
-- Checks if the coverage.json file exists
-- Validates the structure of the coverage data
-- Provides fallbacks for missing metrics
-- Logs detailed information for debugging
-
-If the coverage report cannot be generated or parsed correctly, the workflow will fail with a descriptive error message.
-
 ## Customizing Thresholds
 
 You can customize the coverage thresholds in the workflow file:
@@ -58,6 +47,5 @@ If you encounter issues with the workflow:
 1. Check the GitHub Actions logs for error messages
 2. Make sure your tests are properly configured
 3. Verify that the coverage report is being generated correctly
-4. Look for the "Coverage JSON structure" output in the logs to understand the format of your coverage data
 
 For more information, refer to the [GitHub Actions documentation](https://docs.github.com/en/actions). 

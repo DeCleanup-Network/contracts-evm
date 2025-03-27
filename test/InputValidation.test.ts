@@ -19,10 +19,9 @@ describe("Input Validation", function () {
     await dipNft.deployed();
 
     // Deploy DCU Token with temporary reward logic (will update later)
-    // DCUToken requires a reward logic address and max supply
+    // DCUToken only requires a reward logic address now (no max supply)
     const DCUToken = await ethers.getContractFactory("DCUToken");
-    const maxSupply = ethers.utils.parseEther("1000000"); // 1M tokens
-    dcuToken = await DCUToken.deploy(await owner.getAddress(), maxSupply);
+    dcuToken = await DCUToken.deploy(await owner.getAddress());
     await dcuToken.deployed();
 
     // Deploy Reward Manager with DCU token
