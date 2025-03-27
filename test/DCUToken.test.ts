@@ -1,4 +1,4 @@
-import { expect } from "chai";
+import { chai, expect } from "./helpers/setup";
 import hre from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox-viem/network-helpers";
 import { getAddress } from "viem";

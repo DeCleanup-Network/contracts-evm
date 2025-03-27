@@ -1,4 +1,4 @@
-import { expect } from "chai";
+import { chai, expect } from "./helpers/setup";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
