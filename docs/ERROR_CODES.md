@@ -62,7 +62,8 @@ Where:
 |------------|-------------|------------|
 | `TOKEN__InvalidRewardLogicAddress` | Invalid reward logic contract address | `invalidAddress`: The invalid address |
 | `TOKEN__OnlyRewardLogicCanMint` | Only the reward logic contract can mint tokens | `caller`: The caller's address, `rewardLogic`: The reward logic contract address |
-| `TOKEN__MaxSupplyReached` | Maximum token supply reached | `attemptedSupply`: The attempted total supply, `maxSupply`: The maximum allowed supply |
+| `TOKEN__SupplyCapExceeded` | Attempted mint would exceed the supply cap | `attemptedSupply`: The attempted total supply, `supplyCap`: The maximum allowed supply |
+| `TOKEN__CapTooLow` | Requested supply cap is lower than current supply | `requestedCap`: The requested cap value, `currentSupply`: The current token supply |
 
 ### DCUAccounting Contract Errors
 

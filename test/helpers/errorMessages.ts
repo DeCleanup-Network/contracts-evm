@@ -38,7 +38,8 @@ export const RewardManagerErrorMap: ErrorMessageMap = {
 export const TokenErrorMap: ErrorMessageMap = {
   TOKEN__InvalidRewardLogicAddress: "Invalid RewardLogic address",
   TOKEN__OnlyRewardLogicCanMint: "Only RewardLogic Contract can mint",
-  TOKEN__MaxSupplyReached: "Max supply reached",
+  TOKEN__SupplyCapExceeded: "Supply cap would be exceeded",
+  TOKEN__CapTooLow: "Cap cannot be less than current supply",
 };
 
 export const AccountingErrorMap: ErrorMessageMap = {
