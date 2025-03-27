@@ -1,15 +1,25 @@
+# GraphQL Schema Example
+
+This file provides an example GraphQL schema for a subgraph to track NFT claims, upgrades, and rewards. The schema defines entities and their relationships.
+
+## Schema Code
+
+```graphql
 type User @entity {
-  id: ID! # user address
-  tokens: [Token!]! @derivedFrom(field: "owner")
+  id: ID! # User address
   totalClaims: Int!
   totalUpgrades: Int!
   totalRewards: BigInt!
-  lastActivity: BigInt
   createdAt: BigInt!
+  lastActivity: BigInt
+  tokens: [Token!]! @derivedFrom(field: "owner")
+  claims: [NFTClaim!]! @derivedFrom(field: "user")
+  upgrades: [NFTUpgrade!]! @derivedFrom(field: "user")
+  rewards: [RewardDistribution!]! @derivedFrom(field: "user")
 }
 
 type Token @entity {
-  id: ID! # tokenId
+  id: ID! # TokenId
   tokenId: BigInt!
   owner: User!
   level: Int!
@@ -44,12 +54,12 @@ type RewardDistribution @entity {
   id: ID! # tx hash + log index
   user: User!
   amount: BigInt!
-  nftBalance: Int!
   timestamp: BigInt!
+  level: Int!
   transaction: String!
 }
 
-type NFTClaimReward @entity {
+type NFTClaimRewardEntity @entity {
   id: ID! # tx hash + log index
   user: User!
   tokenId: BigInt!
@@ -58,17 +68,18 @@ type NFTClaimReward @entity {
   transaction: String!
 }
 
-type NFTUpgradeReward @entity {
+type NFTUpgradeRewardEntity @entity {
   id: ID! # tx hash + log index
   user: User!
   tokenId: BigInt!
+  amount: BigInt!
+  oldLevel: Int!
   newLevel: Int!
-  amount: BigInt!
   timestamp: BigInt!
   transaction: String!
 }
 
-type DCUDistribution @entity {
+type DCUDistributionEntity @entity {
   id: ID! # tx hash + log index
   user: User!
   amount: BigInt!
@@ -77,11 +88,23 @@ type DCUDistribution @entity {
   transaction: String!
 }
 
-# This entity can be used to track global statistics
 type Global @entity {
-  id: ID! # always "global"
+  id: ID! # "global"
   totalNFTsClaimed: Int!
   totalUpgrades: Int!
   totalRewardsDistributed: BigInt!
   lastUpdated: BigInt!
-} 
+}
+```
+
+## Usage
+
+This schema defines entities for tracking NFT claims, upgrades, rewards, and user statistics. Key entities include:
+
+1. **User**: Represents a user with NFTs, tracking their claims, upgrades, and rewards
+2. **Token**: Represents an NFT with its level and ownership information
+3. **NFTClaim & NFTUpgrade**: Track individual NFT claim and upgrade events
+4. **RewardDistribution & related entities**: Track different types of reward distributions
+5. **Global**: Tracks global statistics across the entire platform
+
+For more details on GraphQL schemas for subgraphs, see The Graph documentation at https://thegraph.com/docs/. 

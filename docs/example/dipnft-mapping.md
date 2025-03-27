@@ -1,3 +1,10 @@
+# DipNft Contract Mapping Example
+
+This file provides an example AssemblyScript mapping for the DipNft contract events. It shows how to properly handle and index NFT-related events in a subgraph.
+
+## Mapping Code
+
+```typescript
 import { BigInt, Address, log } from '@graphprotocol/graph-ts'
 import {
   NFTEvent,
@@ -200,4 +207,11 @@ export function handleDCURewardTriggered(event: DCURewardTriggered): void {
   // Save entities
   user.save()
   global.save()
-} 
+}
+```
+
+## Usage
+
+This mapping file should be used in conjunction with the DipNft contract ABI and the subgraph configuration. It handles all NFT-related events, including the unified `NFTEvent` for claims and upgrades.
+
+For more details on subgraph development, see The Graph documentation at https://thegraph.com/docs/. 

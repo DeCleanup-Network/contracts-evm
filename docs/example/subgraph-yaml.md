@@ -1,3 +1,10 @@
+# Subgraph Configuration Example
+
+This file provides an example configuration for a subgraph to index DipNft and RewardLogic contract events. The YAML file defines data sources, event handlers, and mapping functions.
+
+## Configuration Code
+
+```yaml
 specVersion: 0.0.5
 schema:
   file: ./schema.graphql
@@ -61,4 +68,14 @@ dataSources:
           handler: handleNFTUpgradeReward
         - event: DCUDistributed(indexed address,uint256,uint256,string)
           handler: handleDCUDistributed
-      file: ./src/rewardlogic-mapping.ts 
+      file: ./src/rewardlogic-mapping.ts
+```
+
+## Usage
+
+This configuration file should be customized with your actual contract addresses and deployment blocks. It defines two data sources:
+
+1. **DipNft**: Handles NFT-related events, including the unified `NFTEvent` and legacy events
+2. **RewardLogic**: Handles reward distribution events
+
+For more details on subgraph configuration, see The Graph documentation at https://thegraph.com/docs/. 

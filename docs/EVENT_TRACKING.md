@@ -54,17 +54,20 @@ This document outlines the changes made to track NFT claims and upgrades, ensuri
 
 We've added example files to assist with The Graph integration:
 
-1. **subgraph.yaml.example**
+1. **Subgraph Configuration**
    - Example configuration file for The Graph subgraph
    - Includes data sources and event handlers for both contracts
+   - See [Subgraph Configuration Example](./example/subgraph-yaml.md)
 
-2. **schema.graphql.example**
+2. **GraphQL Schema**
    - GraphQL schema defining entities for tracking claims, upgrades, and rewards
    - Includes relationships between users, tokens, and various events
+   - See [GraphQL Schema Example](./example/schema-graphql.md)
 
-3. **dipnft-mapping.ts.example** & **rewardlogic-mapping.ts.example**
+3. **Mapping Files**
    - Example AssemblyScript mapping files for processing events
    - Shows how to update entities and track statistics
+   - See [DipNft Contract Mapping Example](./example/dipnft-mapping.md) and [RewardLogic Contract Mapping Example](./example/rewardlogic-mapping.md)
 
 ## Testing
 
