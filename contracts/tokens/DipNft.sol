@@ -18,6 +18,20 @@ import "../DCURewardManager.sol";
 contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     using Strings for uint256;
 
+    // Custom errors
+    error NFT__TokenNotExists(uint256 tokenId);
+    error NFT__NotVerifiedPOI(address user);
+    error NFT__RewardsContractNotSet();
+    error NFT__TransferRestricted(uint256 tokenId);
+    error NFT__InvalidRewardsContract(address contractAddress);
+    error NFT__InvalidAddress(address invalidAddress);
+    error NFT__AlreadyMinted(address user);
+    error NFT__NotTokenOwner(address user, uint256 tokenId, address owner);
+    error NFT__MaxLevelReached(uint256 tokenId, uint256 currentLevel, uint256 maxLevel);
+    error NFT__InvalidLevelRange(uint256 level, uint256 maxLevel);
+    error NFT__UserHasNoNFT(address user);
+    error NFT__TransferNotAuthorized(uint256 tokenId);
+
     // Constants (these don't use storage slots)
     uint256 public constant MAX_LEVEL = 10;
     uint256 public constant REWARD_AMOUNT = 10; // Amount of DCU to reward
@@ -99,7 +113,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @dev Modifier to check if a token ID is valid
      */
     modifier validTokenId(uint256 tokenId) {
-        require(_exists(tokenId), "Token does not exist");
+        if (!_exists(tokenId)) revert NFT__TokenNotExists(tokenId);
         _;
     }
 
@@ -114,7 +128,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @dev Modifier to restrict access to verified POI users
      */
     modifier onlyVerifiedPOI() {
-        require(verifiedPOI[msg.sender], "You are not a verified POI");
+        if (!verifiedPOI[msg.sender]) revert NFT__NotVerifiedPOI(msg.sender);
         _;
     }
 
@@ -122,7 +136,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @dev Modifier to check if rewards contract is set
      */
     modifier rewardsContractSet() {
-        require(rewardsContract != address(0), "Rewards contract not set");
+        if (rewardsContract == address(0)) revert NFT__RewardsContractNotSet();
         _;
     }
 
@@ -135,10 +149,8 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         uint256 tokenId
     ) public virtual override(ERC721, IERC721) {
         // Check if this is an authorized transfer
-        require(
-            _transferAuthorized[tokenId] && to == _authorizedRecipient[tokenId],
-            "DipNft: transfers are restricted (soulbound NFT)"
-        );
+        if (!(_transferAuthorized[tokenId] && to == _authorizedRecipient[tokenId]))
+            revert NFT__TransferRestricted(tokenId);
 
         // Reset authorization after transfer
         _transferAuthorized[tokenId] = false;
@@ -157,10 +169,8 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         bytes memory data
     ) public override(ERC721, IERC721) {
         // Check if this is an authorized transfer
-        require(
-            _transferAuthorized[tokenId] && to == _authorizedRecipient[tokenId],
-            "DipNft: transfers are restricted (soulbound NFT)"
-        );
+        if (!(_transferAuthorized[tokenId] && to == _authorizedRecipient[tokenId]))
+            revert NFT__TransferRestricted(tokenId);
 
         // Reset authorization after transfer
         _transferAuthorized[tokenId] = false;
@@ -174,10 +184,9 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @param _rewardsContract The address of the rewards contract
      */
     function setRewardsContract(address _rewardsContract) external onlyOwner {
-        require(
-            _rewardsContract != address(0),
-            "Invalid rewards contract address"
-        );
+        if (_rewardsContract == address(0))
+            revert NFT__InvalidRewardsContract(_rewardsContract);
+            
         address oldContract = rewardsContract;
         rewardsContract = _rewardsContract;
         emit RewardsContractUpdated(oldContract, _rewardsContract);
@@ -188,7 +197,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @param _poi The address of the user to verify
      */
     function verifyPOI(address _poi) public onlyOwner {
-        require(_poi != address(0), "Invalid address");
+        if (_poi == address(0)) revert NFT__InvalidAddress(_poi);
         verifiedPOI[_poi] = true;
         emit POIVerified(_poi);
     }
@@ -199,7 +208,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @param to The recipient address for the authorized transfer
      */
     function authorizeTransfer(uint256 tokenId, address to) external onlyOwner validTokenId(tokenId) {
-        require(to != address(0), "Invalid recipient");
+        if (to == address(0)) revert NFT__InvalidAddress(to);
 
         _transferAuthorized[tokenId] = true;
         _authorizedRecipient[tokenId] = to;
@@ -212,7 +221,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @param tokenId The token ID to revoke transfer authorization for
      */
     function revokeTransferAuthorization(uint256 tokenId) external onlyOwner validTokenId(tokenId) {
-        require(_transferAuthorized[tokenId], "Transfer not authorized");
+        if (!_transferAuthorized[tokenId]) revert NFT__TransferNotAuthorized(tokenId);
 
         _transferAuthorized[tokenId] = false;
         _authorizedRecipient[tokenId] = address(0);
@@ -238,7 +247,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @param to The recipient address
      */
     function adminTransfer(uint256 tokenId, address to) external onlyOwner validTokenId(tokenId) {
-        require(to != address(0), "Invalid recipient");
+        if (to == address(0)) revert NFT__InvalidAddress(to);
 
         address currentOwner = ownerOf(tokenId);
 
@@ -272,10 +281,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @dev Mint a new NFT for a verified POI user
      */
     function safeMint() public onlyVerifiedPOI nonReentrant {
-        require(
-            hasMinted[msg.sender] == false,
-            "You have already minted a token"
-        );
+        if (hasMinted[msg.sender]) revert NFT__AlreadyMinted(msg.sender);
 
         uint256 tokenId = _tokenIdCounter;
         _tokenIdCounter++;
@@ -314,15 +320,13 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @param tokenId The ID of the token to upgrade
      */
     function upgradeNFT(uint256 tokenId) external onlyVerifiedPOI nonReentrant validTokenId(tokenId) {
-        require(hasMinted[msg.sender], "You have not minted a token yet");
-        require(
-            _isAuthorized(_ownerOf(tokenId), msg.sender, tokenId),
-            "You don't own this token"
-        );
-        require(
-            nftLevel[tokenId] < MAX_LEVEL,
-            "You have reached the maximum level"
-        );
+        if (!hasMinted[msg.sender]) revert NFT__UserHasNoNFT(msg.sender);
+        
+        if (!_isAuthorized(_ownerOf(tokenId), msg.sender, tokenId))
+            revert NFT__NotTokenOwner(msg.sender, tokenId, _ownerOf(tokenId));
+            
+        if (nftLevel[tokenId] >= MAX_LEVEL)
+            revert NFT__MaxLevelReached(tokenId, nftLevel[tokenId], MAX_LEVEL);
 
         // Store the old level for the event
         uint256 oldLevel = nftLevel[tokenId];
@@ -360,9 +364,9 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @param level Level of the NFT
      */
     function distributeReward(address user, uint256 level) external onlyOwner {
-        require(user != address(0), "Invalid user address");
-        require(verifiedPOI[user], "User is not a verified POI");
-        require(level > 0 && level <= MAX_LEVEL, "Invalid level range");
+        if (user == address(0)) revert NFT__InvalidAddress(user);
+        if (!verifiedPOI[user]) revert NFT__NotVerifiedPOI(user);
+        if (level == 0 || level > MAX_LEVEL) revert NFT__InvalidLevelRange(level, MAX_LEVEL);
 
         // Emit event for reward distribution
         emit DCURewardTriggered(user, REWARD_AMOUNT);
@@ -406,7 +410,9 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         uint256 tokenId,
         uint256 newImpactLevel
     ) external onlyOwner validTokenId(tokenId) {
-        require(newImpactLevel > 0 && newImpactLevel <= MAX_LEVEL, "Invalid impact level range");
+        if (newImpactLevel == 0 || newImpactLevel > MAX_LEVEL) 
+            revert NFT__InvalidLevelRange(newImpactLevel, MAX_LEVEL);
+            
         impactLevel[tokenId] = newImpactLevel;
         emit ImpactLevelUpdated(tokenId, newImpactLevel);
     }
@@ -445,9 +451,9 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     function getUserNFTData(
         address user
     ) external view returns (uint256 tokenId, uint256 impact, uint256 level) {
-        require(hasMinted[user], "User has no NFT");
+        if (!hasMinted[user]) revert NFT__UserHasNoNFT(user);
         tokenId = _userTokenIds[user];
-        require(_ownerOf(tokenId) == user, "No NFT found");
+        if (_ownerOf(tokenId) != user) revert NFT__NotTokenOwner(user, tokenId, _ownerOf(tokenId));
         return (tokenId, impactLevel[tokenId], nftLevel[tokenId]);
     }
 

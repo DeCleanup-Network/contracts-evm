@@ -9,6 +9,18 @@ import "./interfaces/IDCUToken.sol";
  * @dev Contract for managing DCU rewards for users based on various activities
  */
 contract DCURewardManager is Ownable {
+    // Custom errors
+    error REWARD__InvalidLevel(uint256 level, uint256 maxLevel);
+    error REWARD__InvalidAddress(address invalidAddress);
+    error REWARD__PoiNotVerified(address user);
+    error REWARD__LevelAlreadyClaimed(address user, uint256 level);
+    error REWARD__SelfReferralNotAllowed(address user);
+    error REWARD__ReferralAlreadyRegistered(address invitee, address existingReferrer);
+    error REWARD__InsufficientBalance(address user, uint256 amount, uint256 balance);
+    error REWARD__ZeroAmount();
+    error REWARD__ExcessiveRewardAmount(uint256 amount, uint256 maxAmount);
+    error REWARD__RewardDistributionFailed(address to, uint256 amount);
+
     // Constants (these don't use storage slots)
     uint256 public constant MAX_LEVEL = 10;
     uint256 public constant MAX_REWARD_AMOUNT = 1000 ether; // 1000 DCU maximum reward limit
@@ -86,7 +98,7 @@ contract DCURewardManager is Ownable {
     
     // Modifier for level validation
     modifier validLevel(uint256 level) {
-        require(level > 0 && level <= MAX_LEVEL, "Invalid level range");
+        if (level == 0 || level > MAX_LEVEL) revert REWARD__InvalidLevel(level, MAX_LEVEL);
         _;
     }
     
@@ -106,7 +118,7 @@ contract DCURewardManager is Ownable {
      * @param verified Whether the PoI is verified
      */
     function setPoiVerificationStatus(address user, bool verified) external onlyOwner {
-        require(user != address(0), "Invalid user address");
+        if (user == address(0)) revert REWARD__InvalidAddress(user);
         poiVerified[user] = verified;
         
         if (verified) {
@@ -147,10 +159,11 @@ contract DCURewardManager is Ownable {
      * @param referrer Address of the referrer
      */
     function registerReferral(address invitee, address referrer) external onlyOwner {
-        require(invitee != address(0), "Invalid invitee address");
-        require(referrer != address(0), "Invalid referrer address");
-        require(invitee != referrer, "Self-referral not allowed");
-        require(referrers[invitee] == address(0), "Referral already registered");
+        if (invitee == address(0)) revert REWARD__InvalidAddress(invitee);
+        if (referrer == address(0)) revert REWARD__InvalidAddress(referrer);
+        if (invitee == referrer) revert REWARD__SelfReferralNotAllowed(invitee);
+        if (referrers[invitee] != address(0)) 
+            revert REWARD__ReferralAlreadyRegistered(invitee, referrers[invitee]);
         
         referrers[invitee] = referrer;
         emit ReferralRegistered(referrer, invitee);
@@ -162,9 +175,9 @@ contract DCURewardManager is Ownable {
      * @param level Level of the Impact Product claimed
      */
     function rewardImpactProductClaim(address user, uint256 level) external onlyOwner validLevel(level) {
-        require(poiVerified[user], "PoI not verified");
-        require(!impactProductClaimed[user][level], "Level already claimed");
-        require(user != address(0), "Invalid user address");
+        if (!poiVerified[user]) revert REWARD__PoiNotVerified(user);
+        if (impactProductClaimed[user][level]) revert REWARD__LevelAlreadyClaimed(user, level);
+        if (user == address(0)) revert REWARD__InvalidAddress(user);
         
         // Mark this level as claimed
         impactProductClaimed[user][level] = true;
@@ -217,11 +230,16 @@ contract DCURewardManager is Ownable {
      * @param amount Amount of DCU to claim
      */
     function claimRewards(uint256 amount) external {
-        require(amount > 0, "Amount must be greater than zero");
-        require(userBalances[msg.sender] >= amount, "Insufficient balance");
+        if (amount == 0) revert REWARD__ZeroAmount();
+        if (userBalances[msg.sender] < amount) 
+            revert REWARD__InsufficientBalance(msg.sender, amount, userBalances[msg.sender]);
+            
         userBalances[msg.sender] -= amount;
         totalRewardsClaimed[msg.sender] += amount;
-        require(dcuToken.mint(msg.sender, amount), "Reward distribution failed");
+        
+        bool success = dcuToken.mint(msg.sender, amount);
+        if (!success) revert REWARD__RewardDistributionFailed(msg.sender, amount);
+        
         emit RewardClaimed(msg.sender, amount);
     }
     
@@ -236,9 +254,14 @@ contract DCURewardManager is Ownable {
         uint256 _referralReward,
         uint256 _streakReward
     ) external onlyOwner {
-        require(_impactProductClaimReward <= MAX_REWARD_AMOUNT, "Impact product claim reward too high");
-        require(_referralReward <= MAX_REWARD_AMOUNT, "Referral reward too high");
-        require(_streakReward <= MAX_REWARD_AMOUNT, "Streak reward too high");
+        if (_impactProductClaimReward > MAX_REWARD_AMOUNT) 
+            revert REWARD__ExcessiveRewardAmount(_impactProductClaimReward, MAX_REWARD_AMOUNT);
+            
+        if (_referralReward > MAX_REWARD_AMOUNT) 
+            revert REWARD__ExcessiveRewardAmount(_referralReward, MAX_REWARD_AMOUNT);
+            
+        if (_streakReward > MAX_REWARD_AMOUNT) 
+            revert REWARD__ExcessiveRewardAmount(_streakReward, MAX_REWARD_AMOUNT);
         
         impactProductClaimReward = _impactProductClaimReward;
         referralReward = _referralReward;

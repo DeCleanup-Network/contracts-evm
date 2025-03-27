@@ -5,6 +5,11 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract DCUToken is ERC20, Ownable {
+    // Custom errors
+    error TOKEN__InvalidRewardLogicAddress(address invalidAddress);
+    error TOKEN__OnlyRewardLogicCanMint(address caller, address rewardLogic);
+    error TOKEN__MaxSupplyReached(uint256 attemptedSupply, uint256 maxSupply);
+
     // Events for detailed tracking
     event DCUMinted(
         address indexed to,
@@ -31,14 +36,15 @@ contract DCUToken is ERC20, Ownable {
     
     constructor(address _rewardLogicContract, uint256 _maxSupply) ERC20("DCU Token", "DCU") Ownable(msg.sender) {
         // Initial supply can be minted here if needed
-        require(_rewardLogicContract != address(0), "Invalid RewardLogic address");
+        if (_rewardLogicContract == address(0)) revert TOKEN__InvalidRewardLogicAddress(_rewardLogicContract);
         rewardLogicContract = _rewardLogicContract;
         maxSupply = _maxSupply;
     }
     
     // Modifier to restrict minting to only RewardLogic contract
     modifier onlyRewardLogic() {
-        require(msg.sender == rewardLogicContract, "Only RewardLogic Contract can mint");
+        if (msg.sender != rewardLogicContract) 
+            revert TOKEN__OnlyRewardLogicCanMint(msg.sender, rewardLogicContract);
         _;
     }
     
@@ -47,14 +53,18 @@ contract DCUToken is ERC20, Ownable {
      * @param _newRewardLogicContract The new reward logic contract address
      */
     function updateRewardLogicContract(address _newRewardLogicContract) external onlyOwner {
-        require(_newRewardLogicContract != address(0), "Invalid RewardLogic address");
+        if (_newRewardLogicContract == address(0)) 
+            revert TOKEN__InvalidRewardLogicAddress(_newRewardLogicContract);
+            
         address oldRewardLogic = rewardLogicContract;
         rewardLogicContract = _newRewardLogicContract;
         emit RewardLogicContractUpdated(oldRewardLogic, _newRewardLogicContract, block.timestamp);
     }
 
     function mint(address to, uint256 amount) external onlyRewardLogic returns (bool) {
-        require(totalSupply() + amount <= maxSupply, "Max supply reached");
+        if (totalSupply() + amount > maxSupply) 
+            revert TOKEN__MaxSupplyReached(totalSupply() + amount, maxSupply);
+            
         _mint(to, amount);
         
         // Emit detailed minting event
