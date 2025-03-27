@@ -9,35 +9,29 @@ import "./interfaces/IDCUToken.sol";
  * @dev Contract for managing DCU rewards for users based on various activities
  */
 contract DCURewardManager is Ownable {
-    // Reference to the DCU token contract
-    IDCUToken public dcuToken;
-    
-    // Constants for validation
+    // Constants (these don't use storage slots)
     uint256 public constant MAX_LEVEL = 10;
     uint256 public constant MAX_REWARD_AMOUNT = 1000 ether; // 1000 DCU maximum reward limit
     
-    // Mapping from user address to their DCU balance
-    mapping(address => uint256) public userBalances;
+    // Address variables (each uses a full slot)
+    IDCUToken public dcuToken;
     
-    // Reward amounts for different activities
+    // Group uint256 variables together (each uses a full slot)
     uint256 public impactProductClaimReward = 10 ether; // 10 DCU for Impact Product claims
     uint256 public referralReward = 1 ether; // 1 DCU for referrals
     uint256 public streakReward = 3 ether; // 3 DCU for maintaining a 7-day streak
     
-    // PoI verification tracking
+    // Group bool mappings (organized for clarity)
     mapping(address => bool) public poiVerified;
-    
-    // Impact Product claim tracking (user => level => claimed)
+    mapping(address => mapping(address => bool)) public referralRewarded; // referrer => invitee => rewarded
     mapping(address => mapping(uint256 => bool)) public impactProductClaimed;
     
-    // Streak tracking
-    mapping(address => uint256) public lastPoiTimestamp;
-    
-    // Referral system
+    // Group address mappings
     mapping(address => address) public referrers; // invitee => referrer
-    mapping(address => mapping(address => bool)) public referralRewarded; // referrer => invitee => rewarded
     
-    // Reward tracking for analytics
+    // Group uint256 mappings
+    mapping(address => uint256) public userBalances;
+    mapping(address => uint256) public lastPoiTimestamp;
     mapping(address => uint256) public totalClaimRewards; // Total rewards from Impact Product claims
     mapping(address => uint256) public totalStreakRewards; // Total rewards from streaks
     mapping(address => uint256) public totalReferralRewards; // Total rewards from referrals
