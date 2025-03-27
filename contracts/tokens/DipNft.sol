@@ -18,24 +18,28 @@ import "../DCURewardManager.sol";
 contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     using Strings for uint256;
 
-    // Constants
+    // Constants (these don't use storage slots)
     uint256 public constant MAX_LEVEL = 10;
     uint256 public constant REWARD_AMOUNT = 10; // Amount of DCU to reward
     string public constant SOULBOUND_NOTICE =
         "This is a soulbound NFT representing your personal environmental impact.";
 
-    // State variables
-    uint256 private _tokenIdCounter;
+    // Group address variables (each uses a full slot)
     address public rewardsContract;
 
-    // Soulbound transfer authorization mappings
-    mapping(uint256 => bool) private _transferAuthorized;
-    mapping(uint256 => address) private _authorizedRecipient;
+    // Group uint256 variables (each uses a full slot)
+    uint256 private _tokenIdCounter;
 
-    // Mappings
-    mapping(address => uint256) public userLevel;
+    // Group bool mappings together (these can't share slots in mappings, but organizing for clarity)
     mapping(address => bool) public verifiedPOI;
     mapping(address => bool) public hasMinted;
+    mapping(uint256 => bool) private _transferAuthorized;
+
+    // Group address mappings
+    mapping(uint256 => address) private _authorizedRecipient;
+    
+    // Group uint256 mappings
+    mapping(address => uint256) public userLevel;
     mapping(uint256 => uint256) public nftLevel;
     mapping(uint256 => uint256) public impactLevel;
     mapping(address => uint256) private _userTokenIds;
@@ -66,6 +70,17 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         uint256 indexed amount,
         uint256 indexed level
     );
+    
+    // Enhanced events for tracking and indexing
+    event NFTEvent(
+        address indexed user,
+        uint256 indexed tokenId,
+        uint256 oldLevel,
+        uint256 newLevel,
+        uint256 timestamp,
+        uint256 rewardAmount,
+        string eventType
+    );
 
     // Soulbound events
     event TransferAuthorized(
@@ -79,6 +94,14 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         address indexed from,
         address indexed to
     );
+
+    /**
+     * @dev Modifier to check if a token ID is valid
+     */
+    modifier validTokenId(uint256 tokenId) {
+        require(_exists(tokenId), "Token does not exist");
+        _;
+    }
 
     /**
      * @dev Constructor initializes the NFT collection
@@ -175,8 +198,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @param tokenId The token ID to authorize for transfer
      * @param to The recipient address for the authorized transfer
      */
-    function authorizeTransfer(uint256 tokenId, address to) external onlyOwner {
-        require(_exists(tokenId), "Token does not exist");
+    function authorizeTransfer(uint256 tokenId, address to) external onlyOwner validTokenId(tokenId) {
         require(to != address(0), "Invalid recipient");
 
         _transferAuthorized[tokenId] = true;
@@ -189,8 +211,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @dev Revoke a previously authorized transfer (admin only)
      * @param tokenId The token ID to revoke transfer authorization for
      */
-    function revokeTransferAuthorization(uint256 tokenId) external onlyOwner {
-        require(_exists(tokenId), "Token does not exist");
+    function revokeTransferAuthorization(uint256 tokenId) external onlyOwner validTokenId(tokenId) {
         require(_transferAuthorized[tokenId], "Transfer not authorized");
 
         _transferAuthorized[tokenId] = false;
@@ -216,8 +237,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @param tokenId The token ID to transfer
      * @param to The recipient address
      */
-    function adminTransfer(uint256 tokenId, address to) external onlyOwner {
-        require(_exists(tokenId), "Token does not exist");
+    function adminTransfer(uint256 tokenId, address to) external onlyOwner validTokenId(tokenId) {
         require(to != address(0), "Invalid recipient");
 
         address currentOwner = ownerOf(tokenId);
@@ -230,6 +250,22 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         _transfer(currentOwner, to, tokenId);
 
         emit NFTTransferredByAdmin(tokenId, currentOwner, to);
+    }
+
+    /**
+     * @dev Process rewards for the user
+     * @param user Address of the user to reward
+     */
+    function _processReward(address user) internal {
+        emit DCURewards(user, REWARD_AMOUNT);
+        
+        if (rewardsContract != address(0)) {
+            try IRewards(rewardsContract).distributeDCU(user, REWARD_AMOUNT) {
+                emit DCURewardTriggered(user, REWARD_AMOUNT);
+            } catch {
+                emit DCURewardTriggered(user, REWARD_AMOUNT);
+            }
+        }
     }
 
     /**
@@ -255,19 +291,29 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         impactLevel[tokenId] = 1; // Initialize impact level
         hasMinted[msg.sender] = true;
 
+        // Emit events - legacy and enhanced
         emit Minted(msg.sender, tokenId, 1, 1);
+        
+        // Enhanced event for NFT claim
+        emit NFTEvent(
+            msg.sender,
+            tokenId,
+            0, // No old level for new mint
+            1, // New level is 1
+            block.timestamp,
+            REWARD_AMOUNT,
+            "CLAIM"
+        );
 
-        // Emit reward event - actual rewards will be distributed by the owner
-        if (rewardsContract != address(0)) {
-            emit DCURewards(msg.sender, REWARD_AMOUNT);
-        }
+        // Process reward
+        _processReward(msg.sender);
     }
 
     /**
      * @dev Upgrade an NFT's level
      * @param tokenId The ID of the token to upgrade
      */
-    function upgradeNFT(uint256 tokenId) external onlyVerifiedPOI nonReentrant {
+    function upgradeNFT(uint256 tokenId) external onlyVerifiedPOI nonReentrant validTokenId(tokenId) {
         require(hasMinted[msg.sender], "You have not minted a token yet");
         require(
             _isAuthorized(_ownerOf(tokenId), msg.sender, tokenId),
@@ -278,21 +324,34 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
             "You have reached the maximum level"
         );
 
+        // Store the old level for the event
+        uint256 oldLevel = nftLevel[tokenId];
+
         // Increment levels
         nftLevel[tokenId] += 1;
         userLevel[msg.sender] += 1;
 
+        // Emit standard upgrade event
         emit NFTUpgraded(
             msg.sender,
             tokenId,
             nftLevel[tokenId],
             userLevel[msg.sender]
         );
+        
+        // Enhanced event for NFT upgrade
+        emit NFTEvent(
+            msg.sender,
+            tokenId,
+            oldLevel,
+            nftLevel[tokenId],
+            block.timestamp,
+            REWARD_AMOUNT,
+            "UPGRADE"
+        );
 
-        // Emit reward event - actual rewards will be distributed by the owner
-        if (rewardsContract != address(0)) {
-            emit DCURewardTriggered(msg.sender, REWARD_AMOUNT);
-        }
+        // Process reward
+        _processReward(msg.sender);
     }
 
     /**
@@ -303,6 +362,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     function distributeReward(address user, uint256 level) external onlyOwner {
         require(user != address(0), "Invalid user address");
         require(verifiedPOI[user], "User is not a verified POI");
+        require(level > 0 && level <= MAX_LEVEL, "Invalid level range");
 
         // Emit event for reward distribution
         emit DCURewardTriggered(user, REWARD_AMOUNT);
@@ -345,8 +405,8 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     function updateImpactLevel(
         uint256 tokenId,
         uint256 newImpactLevel
-    ) external onlyOwner {
-        require(_exists(tokenId), "Token does not exist");
+    ) external onlyOwner validTokenId(tokenId) {
+        require(newImpactLevel > 0 && newImpactLevel <= MAX_LEVEL, "Invalid impact level range");
         impactLevel[tokenId] = newImpactLevel;
         emit ImpactLevelUpdated(tokenId, newImpactLevel);
     }
@@ -398,9 +458,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      */
     function tokenURI(
         uint256 tokenId
-    ) public view override(ERC721, ERC721URIStorage) returns (string memory) {
-        require(_exists(tokenId), "Token does not exist");
-
+    ) public view override(ERC721, ERC721URIStorage) validTokenId(tokenId) returns (string memory) {
         string memory name = string(
             abi.encodePacked("DipNFT #", tokenId.toString())
         );

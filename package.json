@@ -6,7 +6,8 @@
     "test:coverage": "SOLIDITY_COVERAGE=true hardhat coverage",
     "deploy:testnet": "hardhat ignition deploy ignition/modules/DCUContracts.ts --network sepolia",
     "verify:testnet": "hardhat verify --network sepolia",
-    "verify:all": "hardhat run scripts/verify-all.ts --network sepolia"
+    "verify:all": "hardhat run scripts/verify-all.ts --network sepolia",
+    "gas:compare": "hardhat run scripts/gas-comparison.ts"
   },
   "dependencies": {
     "@nomicfoundation/hardhat-toolbox-viem": "^3.0.0",
