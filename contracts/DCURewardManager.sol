@@ -12,6 +12,10 @@ contract DCURewardManager is Ownable {
     // Reference to the DCU token contract
     IDCUToken public dcuToken;
     
+    // Constants for validation
+    uint256 public constant MAX_LEVEL = 10;
+    uint256 public constant MAX_REWARD_AMOUNT = 1000 ether; // 1000 DCU maximum reward limit
+    
     // Mapping from user address to their DCU balance
     mapping(address => uint256) public userBalances;
     
@@ -86,6 +90,12 @@ contract DCURewardManager is Ownable {
         uint256 newBalance
     );
     
+    // Modifier for level validation
+    modifier validLevel(uint256 level) {
+        require(level > 0 && level <= MAX_LEVEL, "Invalid level range");
+        _;
+    }
+    
     /**
      * @dev Constructor sets the DCU token address and initial reward amounts
      * @param _dcuToken Address of the DCU token contract
@@ -102,6 +112,7 @@ contract DCURewardManager is Ownable {
      * @param verified Whether the PoI is verified
      */
     function setPoiVerificationStatus(address user, bool verified) external onlyOwner {
+        require(user != address(0), "Invalid user address");
         poiVerified[user] = verified;
         
         if (verified) {
@@ -156,9 +167,10 @@ contract DCURewardManager is Ownable {
      * @param user Address of the user to reward
      * @param level Level of the Impact Product claimed
      */
-    function rewardImpactProductClaim(address user, uint256 level) external onlyOwner {
+    function rewardImpactProductClaim(address user, uint256 level) external onlyOwner validLevel(level) {
         require(poiVerified[user], "PoI not verified");
         require(!impactProductClaimed[user][level], "Level already claimed");
+        require(user != address(0), "Invalid user address");
         
         // Mark this level as claimed
         impactProductClaimed[user][level] = true;
@@ -211,6 +223,7 @@ contract DCURewardManager is Ownable {
      * @param amount Amount of DCU to claim
      */
     function claimRewards(uint256 amount) external {
+        require(amount > 0, "Amount must be greater than zero");
         require(userBalances[msg.sender] >= amount, "Insufficient balance");
         userBalances[msg.sender] -= amount;
         totalRewardsClaimed[msg.sender] += amount;
@@ -229,6 +242,10 @@ contract DCURewardManager is Ownable {
         uint256 _referralReward,
         uint256 _streakReward
     ) external onlyOwner {
+        require(_impactProductClaimReward <= MAX_REWARD_AMOUNT, "Impact product claim reward too high");
+        require(_referralReward <= MAX_REWARD_AMOUNT, "Referral reward too high");
+        require(_streakReward <= MAX_REWARD_AMOUNT, "Streak reward too high");
+        
         impactProductClaimReward = _impactProductClaimReward;
         referralReward = _referralReward;
         streakReward = _streakReward;
