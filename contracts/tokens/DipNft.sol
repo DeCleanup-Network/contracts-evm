@@ -92,6 +92,14 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     );
 
     /**
+     * @dev Modifier to check if a token ID is valid
+     */
+    modifier validTokenId(uint256 tokenId) {
+        require(_exists(tokenId), "Token does not exist");
+        _;
+    }
+
+    /**
      * @dev Constructor initializes the NFT collection
      */
     constructor() ERC721("DipNFT", "DIP") Ownable(msg.sender) {
@@ -186,8 +194,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @param tokenId The token ID to authorize for transfer
      * @param to The recipient address for the authorized transfer
      */
-    function authorizeTransfer(uint256 tokenId, address to) external onlyOwner {
-        require(_exists(tokenId), "Token does not exist");
+    function authorizeTransfer(uint256 tokenId, address to) external onlyOwner validTokenId(tokenId) {
         require(to != address(0), "Invalid recipient");
 
         _transferAuthorized[tokenId] = true;
@@ -200,8 +207,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @dev Revoke a previously authorized transfer (admin only)
      * @param tokenId The token ID to revoke transfer authorization for
      */
-    function revokeTransferAuthorization(uint256 tokenId) external onlyOwner {
-        require(_exists(tokenId), "Token does not exist");
+    function revokeTransferAuthorization(uint256 tokenId) external onlyOwner validTokenId(tokenId) {
         require(_transferAuthorized[tokenId], "Transfer not authorized");
 
         _transferAuthorized[tokenId] = false;
@@ -227,8 +233,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @param tokenId The token ID to transfer
      * @param to The recipient address
      */
-    function adminTransfer(uint256 tokenId, address to) external onlyOwner {
-        require(_exists(tokenId), "Token does not exist");
+    function adminTransfer(uint256 tokenId, address to) external onlyOwner validTokenId(tokenId) {
         require(to != address(0), "Invalid recipient");
 
         address currentOwner = ownerOf(tokenId);
@@ -304,7 +309,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @dev Upgrade an NFT's level
      * @param tokenId The ID of the token to upgrade
      */
-    function upgradeNFT(uint256 tokenId) external onlyVerifiedPOI nonReentrant {
+    function upgradeNFT(uint256 tokenId) external onlyVerifiedPOI nonReentrant validTokenId(tokenId) {
         require(hasMinted[msg.sender], "You have not minted a token yet");
         require(
             _isAuthorized(_ownerOf(tokenId), msg.sender, tokenId),
@@ -353,6 +358,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     function distributeReward(address user, uint256 level) external onlyOwner {
         require(user != address(0), "Invalid user address");
         require(verifiedPOI[user], "User is not a verified POI");
+        require(level > 0 && level <= MAX_LEVEL, "Invalid level range");
 
         // Emit event for reward distribution
         emit DCURewardTriggered(user, REWARD_AMOUNT);
@@ -395,8 +401,8 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     function updateImpactLevel(
         uint256 tokenId,
         uint256 newImpactLevel
-    ) external onlyOwner {
-        require(_exists(tokenId), "Token does not exist");
+    ) external onlyOwner validTokenId(tokenId) {
+        require(newImpactLevel > 0 && newImpactLevel <= MAX_LEVEL, "Invalid impact level range");
         impactLevel[tokenId] = newImpactLevel;
         emit ImpactLevelUpdated(tokenId, newImpactLevel);
     }
@@ -448,9 +454,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      */
     function tokenURI(
         uint256 tokenId
-    ) public view override(ERC721, ERC721URIStorage) returns (string memory) {
-        require(_exists(tokenId), "Token does not exist");
-
+    ) public view override(ERC721, ERC721URIStorage) validTokenId(tokenId) returns (string memory) {
         string memory name = string(
             abi.encodePacked("DipNFT #", tokenId.toString())
         );
