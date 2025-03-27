@@ -12,8 +12,7 @@ describe("DipNft", function () {
 
     // Deploy DCUToken
     const dcuToken = await hre.viem.deployContract("DCUToken", [
-      getAddress(owner.account.address),
-      BigInt(1000000) * BigInt(10 ** 18), // 1 million tokens with 18 decimals
+      getAddress(owner.account.address)
     ]);
 
     // Deploy DCURewardManager
