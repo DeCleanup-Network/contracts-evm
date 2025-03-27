@@ -352,6 +352,30 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     }
 
     /**
+     * @dev Get the category of an NFT based on its level
+     * @param level The level of the NFT
+     * @return The category of the NFT
+     */
+    function _getNFTCategory(
+        uint256 level
+    ) internal pure returns (string memory) {
+        if (level >= 1 && level <= 3) return "Newbie";
+        if (level >= 4 && level <= 6) return "Pro";
+        if (level >= 7 && level <= 9) return "Hero";
+        if (level == 10) return "Guardian";
+        return "Invalid";
+    }
+
+    /**
+     * @dev Check if a token exists
+     * @param tokenId The ID of the token
+     * @return Whether the token exists
+     */
+    function _exists(uint256 tokenId) internal view returns (bool) {
+        return _ownerOf(tokenId) != address(0);
+    }
+
+    /**
      * @dev Get NFT data for a user
      * @param user The address of the user
      * @return tokenId The ID of the user's NFT
@@ -362,37 +386,9 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         address user
     ) external view returns (uint256 tokenId, uint256 impact, uint256 level) {
         require(hasMinted[user], "User has no NFT");
-
         tokenId = _userTokenIds[user];
         require(_ownerOf(tokenId) == user, "No NFT found");
-
         return (tokenId, impactLevel[tokenId], nftLevel[tokenId]);
-    }
-
-    /**
-     * @dev Get the category of an NFT based on its level
-     * @param level The level of the NFT
-     * @return The category of the NFT
-     */
-    function getNFTCategory(
-        uint256 level
-    ) external pure returns (string memory) {
-        if (level >= 1 && level <= 3) return "Newbie";
-        if (level >= 4 && level <= 6) return "Pro";
-        if (level >= 7 && level <= 9) return "Hero";
-        if (level == 10) return "Guardian";
-        return "Invalid";
-    }
-
-    /**
-     * @dev Override supportsInterface function
-     * @param interfaceId The interface ID to check
-     * @return Whether the contract supports the interface
-     */
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view override(ERC721, ERC721URIStorage) returns (bool) {
-        return super.supportsInterface(interfaceId);
     }
 
     /**
@@ -416,7 +412,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         );
         string memory levelStr = nftLevel[tokenId].toString();
         string memory impactStr = impactLevel[tokenId].toString();
-        string memory category = this.getNFTCategory(nftLevel[tokenId]);
+        string memory category = _getNFTCategory(nftLevel[tokenId]);
 
         string memory json = string(
             abi.encodePacked(
@@ -461,7 +457,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     ) internal view returns (string memory) {
         // Generate dynamic SVG based on NFT attributes
         string memory levelText = nftLevel[tokenId].toString();
-        string memory categoryText = this.getNFTCategory(nftLevel[tokenId]);
+        string memory categoryText = _getNFTCategory(nftLevel[tokenId]);
 
         // Generate gradient colors based on level
         string memory startColor;
@@ -513,15 +509,13 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Check if a token exists
-     * @param tokenId The ID of the token
-     * @return Whether the token exists
+     * @dev Override supportsInterface function
+     * @param interfaceId The interface ID to check
+     * @return Whether the contract supports the interface
      */
-    function _exists(uint256 tokenId) internal view returns (bool) {
-        try this.ownerOf(tokenId) returns (address) {
-            return true;
-        } catch {
-            return false;
-        }
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override(ERC721, ERC721URIStorage) returns (bool) {
+        return super.supportsInterface(interfaceId);
     }
 }

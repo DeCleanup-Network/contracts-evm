@@ -77,7 +77,7 @@ describe("DipNft", function () {
       const { dipNft, owner, user1 } = await loadFixture(deployDipNftFixture);
 
       // Mint a token to check if the counter starts from 0
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -207,7 +207,7 @@ describe("DipNft", function () {
       const { dipNft, owner, user1 } = await loadFixture(deployDipNftFixture);
 
       // Mint a token
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -230,7 +230,7 @@ describe("DipNft", function () {
       );
 
       // Mint a token
-      const tx = await dipNft.write.safeMint([], {
+      const tx = await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -248,7 +248,7 @@ describe("DipNft", function () {
         await loadFixture(deployDipNftFixture);
 
       // Mint a token
-      const tx = await dipNft.write.safeMint([], {
+      const tx = await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -268,7 +268,7 @@ describe("DipNft", function () {
       const { dipNft, user2 } = await loadFixture(deployDipNftFixture);
 
       await expect(
-        dipNft.write.safeMint([], {
+        dipNft.write.safeMint({
           account: user2.account,
         })
       ).to.be.rejectedWith("You are not a verified POI");
@@ -278,13 +278,13 @@ describe("DipNft", function () {
       const { dipNft, owner, user1 } = await loadFixture(deployDipNftFixture);
 
       // Mint first token
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
       // Try to mint second token
       await expect(
-        dipNft.write.safeMint([], {
+        dipNft.write.safeMint({
           account: user1.account,
         })
       ).to.be.rejectedWith("You have already minted a token");
@@ -296,7 +296,7 @@ describe("DipNft", function () {
       const { dipNft, owner, user1 } = await loadFixture(deployDipNftFixture);
 
       // Mint a token
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -318,7 +318,7 @@ describe("DipNft", function () {
       );
 
       // Mint a token
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -341,7 +341,7 @@ describe("DipNft", function () {
         await loadFixture(deployDipNftFixture);
 
       // Mint a token
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -368,7 +368,7 @@ describe("DipNft", function () {
       );
 
       // Mint a token
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -394,12 +394,12 @@ describe("DipNft", function () {
       });
 
       // Mint a token for user1
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
       // Mint a token for user2 so they have minted a token
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user2.account,
       });
 
@@ -415,7 +415,7 @@ describe("DipNft", function () {
       const { dipNft, owner, user1 } = await loadFixture(deployDipNftFixture);
 
       // Mint a token
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -448,7 +448,7 @@ describe("DipNft", function () {
       });
 
       // Mint a token
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -472,7 +472,7 @@ describe("DipNft", function () {
       });
 
       // Mint a token
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -499,7 +499,7 @@ describe("DipNft", function () {
       });
 
       // Mint a token
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -533,7 +533,7 @@ describe("DipNft", function () {
       });
 
       // Mint a token
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -562,16 +562,75 @@ describe("DipNft", function () {
     });
 
     it("Should return correct category based on NFT level", async function () {
-      const { dipNft } = await loadFixture(deployDipNftFixture);
+      const { dipNft, owner, user1 } = await loadFixture(deployDipNftFixture);
 
-      expect(await dipNft.read.getNFTCategory([1n])).to.equal("Newbie");
-      expect(await dipNft.read.getNFTCategory([3n])).to.equal("Newbie");
-      expect(await dipNft.read.getNFTCategory([4n])).to.equal("Pro");
-      expect(await dipNft.read.getNFTCategory([6n])).to.equal("Pro");
-      expect(await dipNft.read.getNFTCategory([7n])).to.equal("Hero");
-      expect(await dipNft.read.getNFTCategory([9n])).to.equal("Hero");
-      expect(await dipNft.read.getNFTCategory([10n])).to.equal("Guardian");
-      expect(await dipNft.read.getNFTCategory([11n])).to.equal("Invalid");
+      // Verify user1 as POI
+      await dipNft.write.verifyPOI([getAddress(user1.account.address)], {
+        account: owner.account,
+      });
+
+      // Mint a token to user1
+      await dipNft.write.safeMint({
+        account: user1.account,
+      });
+
+      // Test different levels by updating the NFT level
+      await dipNft.write.upgradeNFT([0n], {
+        account: user1.account,
+      });
+      await dipNft.write.upgradeNFT([0n], {
+        account: user1.account,
+      }); // Level 3
+      let tokenURI = await dipNft.read.tokenURI([0n]);
+      let base64Data = tokenURI.split("base64,")[1];
+      let jsonData = JSON.parse(Buffer.from(base64Data, "base64").toString());
+      expect(jsonData.attributes[2].value).to.equal("Newbie");
+
+      await dipNft.write.upgradeNFT([0n], {
+        account: user1.account,
+      }); // Level 4
+      tokenURI = await dipNft.read.tokenURI([0n]);
+      base64Data = tokenURI.split("base64,")[1];
+      jsonData = JSON.parse(Buffer.from(base64Data, "base64").toString());
+      expect(jsonData.attributes[2].value).to.equal("Pro");
+
+      await dipNft.write.upgradeNFT([0n], {
+        account: user1.account,
+      });
+      await dipNft.write.upgradeNFT([0n], {
+        account: user1.account,
+      }); // Level 6
+      tokenURI = await dipNft.read.tokenURI([0n]);
+      base64Data = tokenURI.split("base64,")[1];
+      jsonData = JSON.parse(Buffer.from(base64Data, "base64").toString());
+      expect(jsonData.attributes[2].value).to.equal("Pro");
+
+      await dipNft.write.upgradeNFT([0n], {
+        account: user1.account,
+      }); // Level 7
+      tokenURI = await dipNft.read.tokenURI([0n]);
+      base64Data = tokenURI.split("base64,")[1];
+      jsonData = JSON.parse(Buffer.from(base64Data, "base64").toString());
+      expect(jsonData.attributes[2].value).to.equal("Hero");
+
+      await dipNft.write.upgradeNFT([0n], {
+        account: user1.account,
+      });
+      await dipNft.write.upgradeNFT([0n], {
+        account: user1.account,
+      }); // Level 9
+      tokenURI = await dipNft.read.tokenURI([0n]);
+      base64Data = tokenURI.split("base64,")[1];
+      jsonData = JSON.parse(Buffer.from(base64Data, "base64").toString());
+      expect(jsonData.attributes[2].value).to.equal("Hero");
+
+      await dipNft.write.upgradeNFT([0n], {
+        account: user1.account,
+      }); // Level 10
+      tokenURI = await dipNft.read.tokenURI([0n]);
+      base64Data = tokenURI.split("base64,")[1];
+      jsonData = JSON.parse(Buffer.from(base64Data, "base64").toString());
+      expect(jsonData.attributes[2].value).to.equal("Guardian");
     });
   });
 
@@ -585,7 +644,7 @@ describe("DipNft", function () {
       });
 
       // Mint a token
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -629,7 +688,7 @@ describe("DipNft", function () {
       const { dipNft, owner, user1 } = await loadFixture(deployDipNftFixture);
 
       // Mint a token
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -686,7 +745,7 @@ describe("DipNft", function () {
       const { dipNft, user1, user2 } = await loadFixture(deployDipNftFixture);
 
       // Mint a token to user1
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -712,7 +771,7 @@ describe("DipNft", function () {
       const { dipNft, user1, user2 } = await loadFixture(deployDipNftFixture);
 
       // Mint a token to user1
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -742,7 +801,7 @@ describe("DipNft", function () {
       );
 
       // Mint a token to user1
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -768,7 +827,7 @@ describe("DipNft", function () {
       );
 
       // Mint a token to user1
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -809,7 +868,7 @@ describe("DipNft", function () {
       );
 
       // Mint a token to user1
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -833,7 +892,7 @@ describe("DipNft", function () {
       );
 
       // Mint a token to user1
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -875,7 +934,7 @@ describe("DipNft", function () {
       );
 
       // Mint a token to user1
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
@@ -906,6 +965,7 @@ describe("DipNft", function () {
         fromBlock: startBlock,
         toBlock: endBlock,
         eventName: "TransferAuthorized",
+        abi: dipNft.abi,
       });
 
       const adminTransferLogs = await publicClient.getContractEvents({
@@ -913,6 +973,7 @@ describe("DipNft", function () {
         fromBlock: startBlock,
         toBlock: endBlock,
         eventName: "NFTTransferredByAdmin",
+        abi: dipNft.abi,
       });
 
       // Verify events were emitted
@@ -924,7 +985,7 @@ describe("DipNft", function () {
       const { dipNft, user1, user2 } = await loadFixture(deployDipNftFixture);
 
       // Mint a token to user1
-      await dipNft.write.safeMint([], {
+      await dipNft.write.safeMint({
         account: user1.account,
       });
 
