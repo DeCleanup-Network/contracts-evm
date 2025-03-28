@@ -8,9 +8,6 @@ describe("Verification Sequence", function () {
     const [owner, user1, user2, user3] = await hre.viem.getWalletClients();
     const publicClient = await hre.viem.getPublicClient();
 
-    // Deploy NFT collection first
-    const dipNft = await hre.viem.deployContract("DipNft");
-
     // Deploy DCUToken with a temporary reward logic address (owner's address)
     const dcuToken = await hre.viem.deployContract("DCUToken", [
       owner.account.address, // Use owner as temporary reward logic
@@ -19,8 +16,18 @@ describe("Verification Sequence", function () {
     // Deploy the DCURewardManager contract
     const dcuRewardManager = await hre.viem.deployContract("DCURewardManager", [
       dcuToken.address,
-      dipNft.address,
+      "0x0000000000000000000000000000000000000001", // Temporary address, will be updated
     ]);
+
+    // Deploy NFT collection with rewards contract address
+    const dipNft = await hre.viem.deployContract("DipNft", [
+      dcuRewardManager.address,
+    ]);
+
+    // Update the NFT address in DCURewardManager
+    await dcuRewardManager.write.updateNftCollection([dipNft.address], {
+      account: owner.account,
+    });
 
     // Deploy the actual RewardLogic contract
     const rewardLogic = await hre.viem.deployContract("RewardLogic", [
