@@ -118,6 +118,15 @@ contract DCURewardManager is Ownable {
     }
     
     /**
+     * @dev Update the NFT collection address
+     * @param _nftCollection New NFT collection address
+     */
+    function updateNftCollection(address _nftCollection) external onlyOwner {
+        require(_nftCollection != address(0), "Invalid NFT collection address");
+        nftCollection = INFTCollection(_nftCollection);
+    }
+    
+    /**
      * @dev Set PoI verification status for a user
      * @param user Address of the user
      * @param verified Whether the PoI is verified
@@ -447,5 +456,16 @@ contract DCURewardManager is Ownable {
     ) {
         VerificationStatus memory status = verificationStatus[user];
         return (status.poiVerified, status.nftMinted, status.rewardEligible);
+    }
+    
+    /**
+     * @dev Set the reward eligibility status directly for testing purposes
+     * @param user Address of the user
+     * @param eligible Whether the user is eligible for rewards
+     */
+    function setRewardEligibilityForTesting(address user, bool eligible) external onlyOwner {
+        require(user != address(0), "Invalid user address");
+        verificationStatus[user].rewardEligible = eligible;
+        emit RewardEligibilityChanged(user, eligible);
     }
 } 

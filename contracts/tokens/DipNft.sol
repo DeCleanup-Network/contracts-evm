@@ -37,7 +37,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard, INFTColle
 
     // Group address mappings
     mapping(uint256 => address) private _authorizedRecipient;
-    
+
     // Group uint256 mappings
     mapping(address => uint256) public userLevel;
     mapping(uint256 => uint256) public nftLevel;
@@ -105,9 +105,11 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard, INFTColle
 
     /**
      * @dev Constructor initializes the NFT collection
+     * @param _rewardsContract The address of the rewards contract
      */
-    constructor() ERC721("DipNFT", "DIP") Ownable(msg.sender) {
+    constructor(address _rewardsContract) ERC721("DipNFT", "DIP") Ownable(msg.sender) {
         _tokenIdCounter = 0;
+        _rewardsContractAddress = _rewardsContract;
     }
 
     /**
@@ -342,7 +344,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard, INFTColle
 
         // Emit events - legacy and enhanced
         emit Minted(msg.sender, tokenId, 1, 1);
-        
+
         // Enhanced event for NFT claim
         emit NFTEvent(
             msg.sender,
@@ -396,7 +398,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard, INFTColle
             nftLevel[tokenId],
             userLevel[msg.sender]
         );
-        
+
         // Enhanced event for NFT upgrade
         emit NFTEvent(
             msg.sender,
