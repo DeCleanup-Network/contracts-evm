@@ -9,13 +9,14 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../interfaces/IRewards.sol";
 import "../DCURewardManager.sol";
+import "../interfaces/INFTCollection.sol";
 
 /**
  * @title DipNft
  * @dev NFT contract for the Dip platform with level progression and rewards
  * Implements soulbound (non-transferable) tokens with admin-approved transfer capabilities
  */
-contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
+contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard, INFTCollection {
     using Strings for uint256;
 
     // Custom errors
@@ -35,23 +36,22 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     // Constants (these don't use storage slots)
     uint256 public constant MAX_LEVEL = 10;
     uint256 public constant REWARD_AMOUNT = 10; // Amount of DCU to reward
-    string public constant SOULBOUND_NOTICE =
-        "This is a soulbound NFT representing your personal environmental impact.";
+    string public constant SOULBOUND_NOTICE = "This is a soulbound NFT.";
 
     // Group address variables (each uses a full slot)
-    address public rewardsContract;
+    address public _rewardsContractAddress;
 
     // Group uint256 variables (each uses a full slot)
     uint256 private _tokenIdCounter;
 
     // Group bool mappings together (these can't share slots in mappings, but organizing for clarity)
     mapping(address => bool) public verifiedPOI;
-    mapping(address => bool) public hasMinted;
+    mapping(address => bool) public _userHasMinted;
     mapping(uint256 => bool) private _transferAuthorized;
 
     // Group address mappings
     mapping(uint256 => address) private _authorizedRecipient;
-    
+
     // Group uint256 mappings
     mapping(address => uint256) public userLevel;
     mapping(uint256 => uint256) public nftLevel;
@@ -119,9 +119,11 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
 
     /**
      * @dev Constructor initializes the NFT collection
+     * @param _rewardsContract The address of the rewards contract
      */
-    constructor() ERC721("DipNFT", "DIP") Ownable(msg.sender) {
+    constructor(address _rewardsContract) ERC721("DipNFT", "DIP") Ownable(msg.sender) {
         _tokenIdCounter = 0;
+        _rewardsContractAddress = _rewardsContract;
     }
 
     /**
@@ -136,7 +138,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @dev Modifier to check if rewards contract is set
      */
     modifier rewardsContractSet() {
-        if (rewardsContract == address(0)) revert NFT__RewardsContractNotSet();
+        if (_rewardsContractAddress == address(0)) revert NFT__RewardsContractNotSet();
         _;
     }
 
@@ -187,8 +189,8 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         if (_rewardsContract == address(0))
             revert NFT__InvalidRewardsContract(_rewardsContract);
             
-        address oldContract = rewardsContract;
-        rewardsContract = _rewardsContract;
+        address oldContract = _rewardsContractAddress;
+        _rewardsContractAddress = _rewardsContract;
         emit RewardsContractUpdated(oldContract, _rewardsContract);
     }
 
@@ -268,8 +270,8 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     function _processReward(address user) internal {
         emit DCURewards(user, REWARD_AMOUNT);
         
-        if (rewardsContract != address(0)) {
-            try IRewards(rewardsContract).distributeDCU(user, REWARD_AMOUNT) {
+        if (_rewardsContractAddress != address(0)) {
+            try IRewards(_rewardsContractAddress).distributeDCU(user, REWARD_AMOUNT) {
                 emit DCURewardTriggered(user, REWARD_AMOUNT);
             } catch {
                 emit DCURewardTriggered(user, REWARD_AMOUNT);
@@ -278,10 +280,59 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     }
 
     /**
+     * @dev Implementation of the mint function from INFTCollection interface
+     * @param to Address to mint the token to
+     * @return The ID of the minted token
+     */
+    function mint(address to) external override onlyOwner returns (uint256) {
+        if (!verifiedPOI[to]) revert NFT__NotVerifiedPOI(to);
+        if (_userHasMinted[to]) revert NFT__AlreadyMinted(to);
+
+        uint256 tokenId = _tokenIdCounter;
+        _tokenIdCounter++;
+
+        _safeMint(to, tokenId);
+
+        // Add token ID mapping
+        _userTokenIds[to] = tokenId;
+
+        // Initialize NFT and user levels
+        userLevel[to] = 1;
+        nftLevel[tokenId] = 1;
+        impactLevel[tokenId] = 1; // Initialize impact level
+        _userHasMinted[to] = true;
+
+        // Emit events
+        emit Minted(to, tokenId, 1, 1);
+        
+        // Enhanced event for NFT claim
+        emit NFTEvent(
+            to,
+            tokenId,
+            0,
+            1,
+            block.timestamp,
+            REWARD_AMOUNT,
+            "CLAIM"
+        );
+
+        // Notify reward manager of NFT minting
+        if (_rewardsContractAddress != address(0)) {
+            try DCURewardManager(_rewardsContractAddress).updateNftMintStatus(to, true) {
+                // Successfully notified reward manager
+            } catch {
+                // Continue even if notification fails
+            }
+        }
+
+        return tokenId;
+    }
+
+    /**
      * @dev Mint a new NFT for a verified POI user
      */
     function safeMint() public onlyVerifiedPOI nonReentrant {
-        if (hasMinted[msg.sender]) revert NFT__AlreadyMinted(msg.sender);
+        if (_userHasMinted[msg.sender]) revert NFT__AlreadyMinted(msg.sender);
 
         uint256 tokenId = _tokenIdCounter;
         _tokenIdCounter++;
@@ -295,11 +346,11 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         userLevel[msg.sender] = 1;
         nftLevel[tokenId] = 1;
         impactLevel[tokenId] = 1; // Initialize impact level
-        hasMinted[msg.sender] = true;
+        _userHasMinted[msg.sender] = true;
 
         // Emit events - legacy and enhanced
         emit Minted(msg.sender, tokenId, 1, 1);
-        
+
         // Enhanced event for NFT claim
         emit NFTEvent(
             msg.sender,
@@ -311,7 +362,16 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
             "CLAIM"
         );
 
-        // Process reward
+        // Notify reward manager of NFT minting
+        if (_rewardsContractAddress != address(0)) {
+            try DCURewardManager(_rewardsContractAddress).updateNftMintStatus(msg.sender, true) {
+                // Successfully notified reward manager
+            } catch {
+                // Continue even if notification fails
+            }
+        }
+
+        // Process reward after verification sequence is established
         _processReward(msg.sender);
     }
 
@@ -320,7 +380,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @param tokenId The ID of the token to upgrade
      */
     function upgradeNFT(uint256 tokenId) external onlyVerifiedPOI nonReentrant validTokenId(tokenId) {
-        if (!hasMinted[msg.sender]) revert NFT__UserHasNoNFT(msg.sender);
+        if (!_userHasMinted[msg.sender]) revert NFT__UserHasNoNFT(msg.sender);
         
         if (!_isAuthorized(_ownerOf(tokenId), msg.sender, tokenId))
             revert NFT__NotTokenOwner(msg.sender, tokenId, _ownerOf(tokenId));
@@ -342,7 +402,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
             nftLevel[tokenId],
             userLevel[msg.sender]
         );
-        
+
         // Enhanced event for NFT upgrade
         emit NFTEvent(
             msg.sender,
@@ -353,6 +413,15 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
             REWARD_AMOUNT,
             "UPGRADE"
         );
+
+        // Ensure reward manager is still aware of the NFT status
+        if (_rewardsContractAddress != address(0)) {
+            try DCURewardManager(_rewardsContractAddress).updateNftMintStatus(msg.sender, true) {
+                // Successfully updated reward manager
+            } catch {
+                // Continue even if update fails
+            }
+        }
 
         // Process reward
         _processReward(msg.sender);
@@ -451,7 +520,7 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
     function getUserNFTData(
         address user
     ) external view returns (uint256 tokenId, uint256 impact, uint256 level) {
-        if (!hasMinted[user]) revert NFT__UserHasNoNFT(user);
+        if (!_userHasMinted[user]) revert NFT__UserHasNoNFT(user);
         tokenId = _userTokenIds[user];
         if (_ownerOf(tokenId) != user) revert NFT__NotTokenOwner(user, tokenId, _ownerOf(tokenId));
         return (tokenId, impactLevel[tokenId], nftLevel[tokenId]);
@@ -462,114 +531,28 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
      * @param tokenId The ID of the token
      * @return The token URI
      */
-    function tokenURI(
-        uint256 tokenId
-    ) public view override(ERC721, ERC721URIStorage) validTokenId(tokenId) returns (string memory) {
-        string memory name = string(
-            abi.encodePacked("DipNFT #", tokenId.toString())
-        );
-        string memory description = string(
-            abi.encodePacked(
-                "This is an on-chain NFT with impact level progression. ",
-                SOULBOUND_NOTICE
-            )
-        );
-        string memory levelStr = nftLevel[tokenId].toString();
-        string memory impactStr = impactLevel[tokenId].toString();
+    function tokenURI(uint256 tokenId) public view override(ERC721, ERC721URIStorage) validTokenId(tokenId) returns (string memory) {
+        string memory level = nftLevel[tokenId].toString();
+        string memory impact = impactLevel[tokenId].toString();
         string memory category = _getNFTCategory(nftLevel[tokenId]);
-
+        
+        // Extremely simplified metadata JSON
         string memory json = string(
             abi.encodePacked(
-                '{"name":"',
-                name,
-                '",',
-                '"description":"',
-                description,
-                '",',
-                '"attributes":[{"trait_type":"Impact Level","value":"',
-                impactStr,
-                '"},',
-                '{"trait_type":"NFT Level","value":"',
-                levelStr,
-                '"},',
-                '{"trait_type":"Category","value":"',
+                '{"name":"DipNFT #', 
+                tokenId.toString(),
+                '","description":"DipNFT",',
+                '"attributes":[{"trait_type":"Level","value":"', 
+                level,
+                '"},{"trait_type":"Impact","value":"', 
+                impact,
+                '"},{"trait_type":"Category","value":"', 
                 category,
-                '"},',
-                '{"trait_type":"Soulbound","value":"Yes"}],',
-                '"image":"',
-                generateSVG(tokenId),
-                '"}'
+                '"}]}'
             )
         );
 
-        return
-            string(
-                abi.encodePacked(
-                    "data:application/json;base64,",
-                    Base64.encode(bytes(json))
-                )
-            );
-    }
-
-    /**
-     * @dev Generate an SVG image for an NFT
-     * @param tokenId The ID of the token
-     * @return The SVG image as a data URI
-     */
-    function generateSVG(
-        uint256 tokenId
-    ) internal view returns (string memory) {
-        // Generate dynamic SVG based on NFT attributes
-        string memory levelText = nftLevel[tokenId].toString();
-        string memory categoryText = _getNFTCategory(nftLevel[tokenId]);
-
-        // Generate gradient colors based on level
-        string memory startColor;
-        string memory endColor;
-
-        if (nftLevel[tokenId] >= 1 && nftLevel[tokenId] <= 3) {
-            startColor = "#3498db"; // Blue
-            endColor = "#2ecc71"; // Green
-        } else if (nftLevel[tokenId] >= 4 && nftLevel[tokenId] <= 6) {
-            startColor = "#2ecc71"; // Green
-            endColor = "#f1c40f"; // Yellow
-        } else if (nftLevel[tokenId] >= 7 && nftLevel[tokenId] <= 9) {
-            startColor = "#f1c40f"; // Yellow
-            endColor = "#e74c3c"; // Red
-        } else {
-            startColor = "#e74c3c"; // Red
-            endColor = "#9b59b6"; // Purple
-        }
-
-        string memory svg = string(
-            abi.encodePacked(
-                '<svg xmlns="http://www.w3.org/2000/svg" width="350" height="350" viewBox="0 0 350 350">',
-                '<defs><linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">',
-                '<stop offset="0%" stop-color="',
-                startColor,
-                '"/>',
-                '<stop offset="100%" stop-color="',
-                endColor,
-                '"/></linearGradient></defs>',
-                '<rect width="100%" height="100%" rx="10" ry="10" fill="url(#gradient)"/>',
-                '<text x="50%" y="40%" font-size="24px" text-anchor="middle" fill="white">DipNFT Level ',
-                levelText,
-                "</text>",
-                '<text x="50%" y="60%" font-size="18px" text-anchor="middle" fill="white">Category: ',
-                categoryText,
-                "</text>",
-                '<text x="50%" y="80%" font-size="12px" text-anchor="middle" fill="white">Soulbound Token</text>',
-                "</svg>"
-            )
-        );
-
-        return
-            string(
-                abi.encodePacked(
-                    "data:image/svg+xml;base64,",
-                    Base64.encode(bytes(svg))
-                )
-            );
+        return string(abi.encodePacked("data:application/json;base64,", Base64.encode(bytes(json))));
     }
 
     /**
@@ -581,5 +564,31 @@ contract DipNft is ERC721, ERC721URIStorage, Ownable, ReentrancyGuard {
         bytes4 interfaceId
     ) public view override(ERC721, ERC721URIStorage) returns (bool) {
         return super.supportsInterface(interfaceId);
+    }
+
+    /**
+     * @dev Check if a user has already minted an NFT (implementation of INFTCollection interface)
+     * @param user Address of the user
+     * @return Whether the user has minted an NFT
+     */
+    function hasMinted(address user) external view override returns (bool) {
+        return _userHasMinted[user];
+    }
+
+    /**
+     * @dev Get the rewards contract address (implementation of INFTCollection interface)
+     * @return The address of the rewards contract
+     */
+    function rewardsContract() external view override returns (address) {
+        return _rewardsContractAddress;
+    }
+
+    /**
+     * @dev Override balanceOf function to implement INFTCollection interface
+     * @param owner Address of the owner
+     * @return The number of tokens owned by the owner
+     */
+    function balanceOf(address owner) public view virtual override(ERC721, IERC721, INFTCollection) returns (uint256) {
+        return super.balanceOf(owner);
     }
 }
