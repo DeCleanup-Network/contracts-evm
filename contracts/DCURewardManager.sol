@@ -3,23 +3,44 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IDCUToken.sol";
+import "./interfaces/INFTCollection.sol";
 
 /**
  * @title DCURewardManager
  * @dev Contract for managing DCU rewards for users based on various activities
  */
 contract DCURewardManager is Ownable {
+    // Custom errors
+    error REWARD__InvalidLevel(uint256 level, uint256 maxLevel);
+    error REWARD__InvalidAddress(address invalidAddress);
+    error REWARD__PoiNotVerified(address user);
+    error REWARD__LevelAlreadyClaimed(address user, uint256 level);
+    error REWARD__SelfReferralNotAllowed(address user);
+    error REWARD__ReferralAlreadyRegistered(address invitee, address existingReferrer);
+    error REWARD__InsufficientBalance(address user, uint256 amount, uint256 balance);
+    error REWARD__ZeroAmount();
+    error REWARD__ExcessiveRewardAmount(uint256 amount, uint256 maxAmount);
+    error REWARD__RewardDistributionFailed(address to, uint256 amount);
+
     // Constants (these don't use storage slots)
     uint256 public constant MAX_LEVEL = 10;
     uint256 public constant MAX_REWARD_AMOUNT = 1000 ether; // 1000 DCU maximum reward limit
     
     // Address variables (each uses a full slot)
     IDCUToken public dcuToken;
+    INFTCollection public nftCollection;
     
     // Group uint256 variables together (each uses a full slot)
     uint256 public impactProductClaimReward = 10 ether; // 10 DCU for Impact Product claims
     uint256 public referralReward = 1 ether; // 1 DCU for referrals
     uint256 public streakReward = 3 ether; // 3 DCU for maintaining a 7-day streak
+    
+    // Verification tracker struct
+    struct VerificationStatus {
+        bool poiVerified;
+        bool nftMinted;
+        bool rewardEligible;
+    }
     
     // Group bool mappings (organized for clarity)
     mapping(address => bool) public poiVerified;
@@ -36,6 +57,9 @@ contract DCURewardManager is Ownable {
     mapping(address => uint256) public totalStreakRewards; // Total rewards from streaks
     mapping(address => uint256) public totalReferralRewards; // Total rewards from referrals
     mapping(address => uint256) public totalRewardsClaimed; // Total rewards claimed (post-TGE)
+    
+    // Verification status tracker mapping
+    mapping(address => VerificationStatus) public verificationStatus;
     
     // Struct for user reward stats to avoid stack too deep errors
     struct UserRewardStats {
@@ -58,6 +82,8 @@ contract DCURewardManager is Ownable {
     event PoiVerified(address indexed user, uint256 timestamp);
     event PoiStreakReset(address indexed user, uint256 timestamp);
     event ReferralRegistered(address indexed referrer, address indexed invitee);
+    event NFTMintStatusUpdated(address indexed user, bool minted);
+    event RewardEligibilityChanged(address indexed user, bool eligible);
     
     // Consolidated reward events with detailed information
     event DCURewardImpactProduct(
@@ -86,18 +112,30 @@ contract DCURewardManager is Ownable {
     
     // Modifier for level validation
     modifier validLevel(uint256 level) {
-        require(level > 0 && level <= MAX_LEVEL, "Invalid level range");
+        if (level == 0 || level > MAX_LEVEL) revert REWARD__InvalidLevel(level, MAX_LEVEL);
         _;
     }
     
     /**
      * @dev Constructor sets the DCU token address and initial reward amounts
      * @param _dcuToken Address of the DCU token contract
+     * @param _nftCollection Address of the NFT collection contract
      */
     constructor(
-        address _dcuToken
+        address _dcuToken,
+        address _nftCollection
     ) Ownable(msg.sender) {
         dcuToken = IDCUToken(_dcuToken);
+        nftCollection = INFTCollection(_nftCollection);
+    }
+    
+    /**
+     * @dev Update the NFT collection address
+     * @param _nftCollection New NFT collection address
+     */
+    function updateNftCollection(address _nftCollection) external onlyOwner {
+        require(_nftCollection != address(0), "Invalid NFT collection address");
+        nftCollection = INFTCollection(_nftCollection);
     }
     
     /**
@@ -106,8 +144,18 @@ contract DCURewardManager is Ownable {
      * @param verified Whether the PoI is verified
      */
     function setPoiVerificationStatus(address user, bool verified) external onlyOwner {
-        require(user != address(0), "Invalid user address");
+        if (user == address(0)) revert REWARD__InvalidAddress(user);
         poiVerified[user] = verified;
+        verificationStatus[user].poiVerified = verified;
+        
+        // Update reward eligibility if both PoI is verified and NFT is minted
+        if (verified && verificationStatus[user].nftMinted) {
+            verificationStatus[user].rewardEligible = true;
+            emit RewardEligibilityChanged(user, true);
+        } else if (!verified && verificationStatus[user].rewardEligible) {
+            verificationStatus[user].rewardEligible = false;
+            emit RewardEligibilityChanged(user, false);
+        }
         
         if (verified) {
             uint256 currentTime = block.timestamp;
@@ -142,15 +190,38 @@ contract DCURewardManager is Ownable {
     }
     
     /**
+     * @dev Update NFT mint status for a user (called by NFT contract)
+     * @param user Address of the user
+     * @param minted Whether the user has minted an NFT
+     */
+    function updateNftMintStatus(address user, bool minted) external {
+        require(msg.sender == address(nftCollection), "Only NFT contract can call");
+        require(user != address(0), "Invalid user address");
+        
+        verificationStatus[user].nftMinted = minted;
+        emit NFTMintStatusUpdated(user, minted);
+        
+        // If PoI is verified and NFT is minted, user becomes reward eligible
+        if (verificationStatus[user].poiVerified && minted) {
+            verificationStatus[user].rewardEligible = true;
+            emit RewardEligibilityChanged(user, true);
+        } else if (!minted && verificationStatus[user].rewardEligible) {
+            verificationStatus[user].rewardEligible = false;
+            emit RewardEligibilityChanged(user, false);
+        }
+    }
+    
+    /**
      * @dev Register a referral relationship
      * @param invitee Address of the invitee
      * @param referrer Address of the referrer
      */
     function registerReferral(address invitee, address referrer) external onlyOwner {
-        require(invitee != address(0), "Invalid invitee address");
-        require(referrer != address(0), "Invalid referrer address");
-        require(invitee != referrer, "Self-referral not allowed");
-        require(referrers[invitee] == address(0), "Referral already registered");
+        if (invitee == address(0)) revert REWARD__InvalidAddress(invitee);
+        if (referrer == address(0)) revert REWARD__InvalidAddress(referrer);
+        if (invitee == referrer) revert REWARD__SelfReferralNotAllowed(invitee);
+        if (referrers[invitee] != address(0)) 
+            revert REWARD__ReferralAlreadyRegistered(invitee, referrers[invitee]);
         
         referrers[invitee] = referrer;
         emit ReferralRegistered(referrer, invitee);
@@ -162,9 +233,13 @@ contract DCURewardManager is Ownable {
      * @param level Level of the Impact Product claimed
      */
     function rewardImpactProductClaim(address user, uint256 level) external onlyOwner validLevel(level) {
-        require(poiVerified[user], "PoI not verified");
-        require(!impactProductClaimed[user][level], "Level already claimed");
-        require(user != address(0), "Invalid user address");
+        if (!verificationStatus[user].rewardEligible) revert REWARD__PoiNotVerified(user);
+        if (impactProductClaimed[user][level]) revert REWARD__LevelAlreadyClaimed(user, level);
+        if (user == address(0)) revert REWARD__InvalidAddress(user);
+        
+        // Verify NFT ownership through the NFT contract
+        bool hasNFT = nftCollection.balanceOf(user) > 0;
+        require(hasNFT, "User has not minted an Impact Product NFT");
         
         // Mark this level as claimed
         impactProductClaimed[user][level] = true;
@@ -217,11 +292,16 @@ contract DCURewardManager is Ownable {
      * @param amount Amount of DCU to claim
      */
     function claimRewards(uint256 amount) external {
-        require(amount > 0, "Amount must be greater than zero");
-        require(userBalances[msg.sender] >= amount, "Insufficient balance");
+        if (amount == 0) revert REWARD__ZeroAmount();
+        if (userBalances[msg.sender] < amount) 
+            revert REWARD__InsufficientBalance(msg.sender, amount, userBalances[msg.sender]);
+            
         userBalances[msg.sender] -= amount;
         totalRewardsClaimed[msg.sender] += amount;
-        require(dcuToken.mint(msg.sender, amount), "Reward distribution failed");
+        
+        bool success = dcuToken.mint(msg.sender, amount);
+        if (!success) revert REWARD__RewardDistributionFailed(msg.sender, amount);
+        
         emit RewardClaimed(msg.sender, amount);
     }
     
@@ -236,9 +316,14 @@ contract DCURewardManager is Ownable {
         uint256 _referralReward,
         uint256 _streakReward
     ) external onlyOwner {
-        require(_impactProductClaimReward <= MAX_REWARD_AMOUNT, "Impact product claim reward too high");
-        require(_referralReward <= MAX_REWARD_AMOUNT, "Referral reward too high");
-        require(_streakReward <= MAX_REWARD_AMOUNT, "Streak reward too high");
+        if (_impactProductClaimReward > MAX_REWARD_AMOUNT) 
+            revert REWARD__ExcessiveRewardAmount(_impactProductClaimReward, MAX_REWARD_AMOUNT);
+            
+        if (_referralReward > MAX_REWARD_AMOUNT) 
+            revert REWARD__ExcessiveRewardAmount(_referralReward, MAX_REWARD_AMOUNT);
+            
+        if (_streakReward > MAX_REWARD_AMOUNT) 
+            revert REWARD__ExcessiveRewardAmount(_streakReward, MAX_REWARD_AMOUNT);
         
         impactProductClaimReward = _impactProductClaimReward;
         referralReward = _referralReward;
@@ -378,5 +463,32 @@ contract DCURewardManager is Ownable {
             poiStats.lastPoiTime,
             poiStats.isPoiVerified
         );
+    }
+    
+    /**
+     * @dev Get a user's verification status
+     * @param user Address of the user
+     * @return isPoiVerified Whether the user's PoI is verified
+     * @return nftMinted Whether the user has minted an NFT
+     * @return rewardEligible Whether the user is eligible for rewards
+     */
+    function getVerificationStatus(address user) external view returns (
+        bool isPoiVerified,
+        bool nftMinted,
+        bool rewardEligible
+    ) {
+        VerificationStatus memory status = verificationStatus[user];
+        return (status.poiVerified, status.nftMinted, status.rewardEligible);
+    }
+    
+    /**
+     * @dev Set the reward eligibility status directly for testing purposes
+     * @param user Address of the user
+     * @param eligible Whether the user is eligible for rewards
+     */
+    function setRewardEligibilityForTesting(address user, bool eligible) external onlyOwner {
+        require(user != address(0), "Invalid user address");
+        verificationStatus[user].rewardEligible = eligible;
+        emit RewardEligibilityChanged(user, eligible);
     }
 } 

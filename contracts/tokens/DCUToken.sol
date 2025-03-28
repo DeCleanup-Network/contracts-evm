@@ -12,6 +12,12 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
  * Implements ERC20 standard with additional features for tracking and compatibility
  */
 contract DCUToken is ERC20, ERC20Burnable, ERC20Permit, Ownable {
+    // Custom errors
+    error TOKEN__InvalidRewardLogicAddress(address invalidAddress);
+    error TOKEN__OnlyRewardLogicCanMint(address caller, address rewardLogic);
+    error TOKEN__SupplyCapExceeded(uint256 attemptedSupply, uint256 supplyCap);
+    error TOKEN__CapTooLow(uint256 requestedCap, uint256 currentSupply);
+
     // Events for detailed tracking
     event DCUMinted(
         address indexed to,
@@ -62,7 +68,9 @@ contract DCUToken is ERC20, ERC20Burnable, ERC20Permit, Ownable {
         ERC20Permit("DeCleanup Utility Token")
         Ownable(msg.sender) 
     {
-        require(_rewardLogicContract != address(0), "Invalid RewardLogic address");
+        if (_rewardLogicContract == address(0)) 
+            revert TOKEN__InvalidRewardLogicAddress(_rewardLogicContract);
+        
         rewardLogicContract = _rewardLogicContract;
         supplyCapActive = false; // Start with no supply cap
     }
@@ -79,7 +87,8 @@ contract DCUToken is ERC20, ERC20Burnable, ERC20Permit, Ownable {
      * @dev Modifier to restrict minting to only RewardLogic contract
      */
     modifier onlyRewardLogic() {
-        require(msg.sender == rewardLogicContract, "Only RewardLogic Contract can mint");
+        if (msg.sender != rewardLogicContract) 
+            revert TOKEN__OnlyRewardLogicCanMint(msg.sender, rewardLogicContract);
         _;
     }
     
@@ -88,7 +97,9 @@ contract DCUToken is ERC20, ERC20Burnable, ERC20Permit, Ownable {
      * @param _newRewardLogicContract The new reward logic contract address
      */
     function updateRewardLogicContract(address _newRewardLogicContract) external onlyOwner {
-        require(_newRewardLogicContract != address(0), "Invalid RewardLogic address");
+        if (_newRewardLogicContract == address(0)) 
+            revert TOKEN__InvalidRewardLogicAddress(_newRewardLogicContract);
+            
         address oldRewardLogic = rewardLogicContract;
         rewardLogicContract = _newRewardLogicContract;
         emit RewardLogicContractUpdated(oldRewardLogic, _newRewardLogicContract, block.timestamp);
@@ -103,7 +114,8 @@ contract DCUToken is ERC20, ERC20Burnable, ERC20Permit, Ownable {
     function mint(address to, uint256 amount) external onlyRewardLogic returns (bool) {
         // If a supply cap is active, enforce it
         if (supplyCapActive) {
-            require(totalSupply() + amount <= supplyCap, "Supply cap would be exceeded");
+            if (totalSupply() + amount > supplyCap)
+                revert TOKEN__SupplyCapExceeded(totalSupply() + amount, supplyCap);
         }
         
         // Track total minted supply for future reference
@@ -145,7 +157,9 @@ contract DCUToken is ERC20, ERC20Burnable, ERC20Permit, Ownable {
      * @param _supplyCap The maximum total supply
      */
     function setSupplyCap(uint256 _supplyCap) external onlyOwner {
-        require(_supplyCap > totalSupply(), "Cap cannot be less than current supply");
+        if (_supplyCap <= totalSupply())
+            revert TOKEN__CapTooLow(_supplyCap, totalSupply());
+            
         supplyCap = _supplyCap;
         supplyCapActive = true;
         

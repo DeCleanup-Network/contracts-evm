@@ -1,4 +1,4 @@
-import { expect } from "chai";
+import { chai, expect } from "./helpers/setup";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
@@ -9,14 +9,15 @@ describe("Input Validation", function () {
   let owner: SignerWithAddress;
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
+  let nftCollection: any;
 
   beforeEach(async function () {
     [owner, user1, user2] = await ethers.getSigners();
 
-    // First deploy DipNft (no constructor args needed)
-    const DipNft = await ethers.getContractFactory("DipNft");
-    dipNft = await DipNft.deploy();
-    await dipNft.deployed();
+    // Deploy NFT Collection first
+    const NFTCollection = await ethers.getContractFactory("NFTCollection");
+    nftCollection = await NFTCollection.deploy();
+    await nftCollection.deployed();
 
     // Deploy DCU Token with temporary reward logic (will update later)
     // DCUToken only requires a reward logic address now (no max supply)
@@ -24,10 +25,18 @@ describe("Input Validation", function () {
     dcuToken = await DCUToken.deploy(await owner.getAddress());
     await dcuToken.deployed();
 
-    // Deploy Reward Manager with DCU token
+    // Deploy Reward Manager with DCU token and NFT collection
     const RewardManager = await ethers.getContractFactory("DCURewardManager");
-    rewardManager = await RewardManager.deploy(dcuToken.address);
+    rewardManager = await RewardManager.deploy(
+      dcuToken.address,
+      nftCollection.address
+    );
     await rewardManager.deployed();
+
+    // Deploy DipNft with rewards manager
+    const DipNft = await ethers.getContractFactory("DipNft");
+    dipNft = await DipNft.deploy(rewardManager.address);
+    await dipNft.deployed();
 
     // Now update reward logic to point to the actual reward manager
     await dcuToken
@@ -42,6 +51,16 @@ describe("Input Validation", function () {
     await rewardManager
       .connect(owner)
       .setPoiVerificationStatus(await user1.getAddress(), true);
+
+    // Mock NFT ownership for user1
+    await nftCollection
+      .connect(owner)
+      .mockBalanceOf(await user1.getAddress(), 1);
+
+    // Set reward eligibility for testing
+    await rewardManager
+      .connect(owner)
+      .setRewardEligibilityForTesting(await user1.getAddress(), true);
   });
 
   describe("DipNft Input Validation", function () {

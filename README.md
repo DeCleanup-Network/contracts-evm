@@ -94,3 +94,21 @@ Our coverage requirements:
 
 ### Continuous Integration
 We use GitHub Actions to automatically run tests and check coverage on pull requests and pushes to the master branch. Pull requests that don't meet the minimum coverage thresholds will be flagged and blocked from merging.
+
+## 🚨 Error Handling
+
+We use a standardized error handling approach across all contracts to improve gas efficiency, provide better error information, and ensure a consistent user experience:
+
+### Custom Error Format
+All errors follow the naming convention `CONTRACT__ErrorType(parameters)` where:
+- `CONTRACT` indicates which contract the error originated from (e.g., `NFT`, `REWARD`, `TOKEN`)
+- `ErrorType` is a descriptive name of the error
+- `parameters` provide relevant context information for debugging
+
+### Benefits
+- **Gas Efficiency**: Custom errors consume less gas than string-based error messages
+- **Better Developer Experience**: Structured errors with parameters provide better context
+- **Improved User Experience**: Frontend applications can parse errors and display meaningful messages
+- **Code Maintainability**: Consistent error handling approach across contracts
+
+For a complete list of error codes, see the [ERROR_CODES.md](./docs/ERROR_CODES.md) documentation file.

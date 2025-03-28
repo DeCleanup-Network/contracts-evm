@@ -13,6 +13,18 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  * and preparation for future governance, staking, and locking integration.
  */
 contract DCUStorage is ERC20, ERC20Burnable, Ownable, AccessControl, ReentrancyGuard {
+    // Custom Errors
+    error STORAGE__TransfersRestrictedBeforeTGE(address account);
+    error STORAGE__InvalidAddress();
+    error STORAGE__AddressNotWhitelisted(address account);
+    error STORAGE__ZeroAmount();
+    error STORAGE__ZeroDuration();
+    error STORAGE__InsufficientBalance(address user, uint256 amount, uint256 balance);
+    error STORAGE__InsufficientClaimableBalance(address user, uint256 amount, uint256 balance);
+    error STORAGE__InsufficientStakedBalance(address user, uint256 amount, uint256 balance);
+    error STORAGE__NoLockedTokens(address user);
+    error STORAGE__TokensStillLocked(address user, uint256 releaseTime, uint256 currentTime);
+
     // Role definitions for access control
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant GOVERNANCE_ROLE = keccak256("GOVERNANCE_ROLE");
@@ -53,7 +65,8 @@ contract DCUStorage is ERC20, ERC20Burnable, Ownable, AccessControl, ReentrancyG
      * @param account The account to check
      */
     modifier canTransfer(address account) {
-        require(tgeCompleted || whitelisted[account], "Transfers not allowed before TGE");
+        if (!tgeCompleted && !whitelisted[account])
+            revert STORAGE__TransfersRestrictedBeforeTGE(account);
         _;
     }
     
@@ -86,7 +99,7 @@ contract DCUStorage is ERC20, ERC20Burnable, Ownable, AccessControl, ReentrancyG
      * @param account The address to whitelist
      */
     function addToWhitelist(address account) external onlyRole(GOVERNANCE_ROLE) {
-        require(account != address(0), "Invalid address");
+        if (account == address(0)) revert STORAGE__InvalidAddress();
         whitelisted[account] = true;
         emit AddressWhitelisted(account);
     }
@@ -96,7 +109,7 @@ contract DCUStorage is ERC20, ERC20Burnable, Ownable, AccessControl, ReentrancyG
      * @param account The address to remove
      */
     function removeFromWhitelist(address account) external onlyRole(GOVERNANCE_ROLE) {
-        require(whitelisted[account], "Address not whitelisted");
+        if (!whitelisted[account]) revert STORAGE__AddressNotWhitelisted(account);
         whitelisted[account] = false;
         emit AddressRemovedFromWhitelist(account);
     }
@@ -107,8 +120,8 @@ contract DCUStorage is ERC20, ERC20Burnable, Ownable, AccessControl, ReentrancyG
      * @param amount Amount to add to claimable balance
      */
     function addClaimableBalance(address user, uint256 amount) external onlyRole(REWARD_MANAGER_ROLE) {
-        require(user != address(0), "Invalid user address");
-        require(amount > 0, "Amount must be greater than 0");
+        if (user == address(0)) revert STORAGE__InvalidAddress();
+        if (amount == 0) revert STORAGE__ZeroAmount();
         
         claimableBalances[user] += amount;
         totalClaimable += amount;
@@ -121,8 +134,9 @@ contract DCUStorage is ERC20, ERC20Burnable, Ownable, AccessControl, ReentrancyG
      * @param amount Amount to claim
      */
     function claimTokens(uint256 amount) external nonReentrant canTransfer(msg.sender) {
-        require(amount > 0, "Amount must be greater than 0");
-        require(claimableBalances[msg.sender] >= amount, "Insufficient claimable balance");
+        if (amount == 0) revert STORAGE__ZeroAmount();
+        if (claimableBalances[msg.sender] < amount) 
+            revert STORAGE__InsufficientClaimableBalance(msg.sender, amount, claimableBalances[msg.sender]);
         
         claimableBalances[msg.sender] -= amount;
         totalClaimable -= amount;
@@ -138,9 +152,10 @@ contract DCUStorage is ERC20, ERC20Burnable, Ownable, AccessControl, ReentrancyG
      * @param amount Amount to claim
      */
     function claimTokensFor(address user, uint256 amount) external nonReentrant onlyRole(GOVERNANCE_ROLE) canTransfer(user) {
-        require(user != address(0), "Invalid user address");
-        require(amount > 0, "Amount must be greater than 0");
-        require(claimableBalances[user] >= amount, "Insufficient claimable balance");
+        if (user == address(0)) revert STORAGE__InvalidAddress();
+        if (amount == 0) revert STORAGE__ZeroAmount();
+        if (claimableBalances[user] < amount)
+            revert STORAGE__InsufficientClaimableBalance(user, amount, claimableBalances[user]);
         
         claimableBalances[user] -= amount;
         totalClaimable -= amount;
@@ -193,8 +208,9 @@ contract DCUStorage is ERC20, ERC20Burnable, Ownable, AccessControl, ReentrancyG
      * @param amount Amount to stake
      */
     function stake(uint256 amount) external nonReentrant {
-        require(amount > 0, "Amount must be greater than 0");
-        require(balanceOf(msg.sender) >= amount, "Insufficient balance");
+        if (amount == 0) revert STORAGE__ZeroAmount();
+        if (balanceOf(msg.sender) < amount)
+            revert STORAGE__InsufficientBalance(msg.sender, amount, balanceOf(msg.sender));
         
         _transfer(msg.sender, address(this), amount);
         stakedBalances[msg.sender] += amount;
@@ -207,8 +223,9 @@ contract DCUStorage is ERC20, ERC20Burnable, Ownable, AccessControl, ReentrancyG
      * @param amount Amount to unstake
      */
     function unstake(uint256 amount) external nonReentrant {
-        require(amount > 0, "Amount must be greater than 0");
-        require(stakedBalances[msg.sender] >= amount, "Insufficient staked balance");
+        if (amount == 0) revert STORAGE__ZeroAmount();
+        if (stakedBalances[msg.sender] < amount)
+            revert STORAGE__InsufficientStakedBalance(msg.sender, amount, stakedBalances[msg.sender]);
         
         stakedBalances[msg.sender] -= amount;
         _transfer(address(this), msg.sender, amount);
@@ -222,9 +239,10 @@ contract DCUStorage is ERC20, ERC20Burnable, Ownable, AccessControl, ReentrancyG
      * @param lockDuration Duration in seconds to lock tokens
      */
     function lockTokens(uint256 amount, uint256 lockDuration) external nonReentrant {
-        require(amount > 0, "Amount must be greater than 0");
-        require(lockDuration > 0, "Lock duration must be greater than 0");
-        require(balanceOf(msg.sender) >= amount, "Insufficient balance");
+        if (amount == 0) revert STORAGE__ZeroAmount();
+        if (lockDuration == 0) revert STORAGE__ZeroDuration();
+        if (balanceOf(msg.sender) < amount)
+            revert STORAGE__InsufficientBalance(msg.sender, amount, balanceOf(msg.sender));
         
         uint256 releaseTime = block.timestamp + lockDuration;
         
@@ -239,8 +257,9 @@ contract DCUStorage is ERC20, ERC20Burnable, Ownable, AccessControl, ReentrancyG
      * @dev Unlock tokens after lock period
      */
     function unlockTokens() external nonReentrant {
-        require(lockedBalances[msg.sender] > 0, "No locked tokens");
-        require(block.timestamp >= lockReleaseTime[msg.sender], "Tokens still locked");
+        if (lockedBalances[msg.sender] == 0) revert STORAGE__NoLockedTokens(msg.sender);
+        if (block.timestamp < lockReleaseTime[msg.sender])
+            revert STORAGE__TokensStillLocked(msg.sender, lockReleaseTime[msg.sender], block.timestamp);
         
         uint256 amount = lockedBalances[msg.sender];
         lockedBalances[msg.sender] = 0;
@@ -292,7 +311,7 @@ contract DCUStorage is ERC20, ERC20Burnable, Ownable, AccessControl, ReentrancyG
      * @param newGovernance New governance address
      */
     function updateGovernance(address newGovernance) external onlyRole(GOVERNANCE_ROLE) {
-        require(newGovernance != address(0), "Invalid governance address");
+        if (newGovernance == address(0)) revert STORAGE__InvalidAddress();
         
         address oldGovernance = msg.sender;
         _revokeRole(GOVERNANCE_ROLE, oldGovernance);
@@ -306,7 +325,7 @@ contract DCUStorage is ERC20, ERC20Burnable, Ownable, AccessControl, ReentrancyG
      * @param stakingContract Address of the staking contract
      */
     function setStakingContract(address stakingContract) external onlyRole(GOVERNANCE_ROLE) {
-        require(stakingContract != address(0), "Invalid staking contract address");
+        if (stakingContract == address(0)) revert STORAGE__InvalidAddress();
         _grantRole(STAKING_ROLE, stakingContract);
     }
     
@@ -315,7 +334,7 @@ contract DCUStorage is ERC20, ERC20Burnable, Ownable, AccessControl, ReentrancyG
      * @param rewardManager Address of the reward manager contract
      */
     function setRewardManager(address rewardManager) external onlyRole(GOVERNANCE_ROLE) {
-        require(rewardManager != address(0), "Invalid reward manager address");
+        if (rewardManager == address(0)) revert STORAGE__InvalidAddress();
         _grantRole(REWARD_MANAGER_ROLE, rewardManager);
     }
 } 

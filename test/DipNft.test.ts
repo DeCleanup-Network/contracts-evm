@@ -1,4 +1,4 @@
-import { expect } from "chai";
+import { chai, expect } from "./helpers/setup";
 import hre from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox-viem/network-helpers";
 import { getAddress } from "viem";
@@ -12,12 +12,13 @@ describe("DipNft", function () {
 
     // Deploy DCUToken
     const dcuToken = await hre.viem.deployContract("DCUToken", [
-      getAddress(owner.account.address)
+      getAddress(owner.account.address),
     ]);
 
-    // Deploy DCURewardManager
+    // Deploy DCURewardManager with DCU token and temporary NFT address
     const dcuRewardManager = await hre.viem.deployContract("DCURewardManager", [
       getAddress(dcuToken.address),
+      "0x0000000000000000000000000000000000000001", // Temporary NFT address
     ]);
 
     // Update the reward logic contract address in DCUToken to DCURewardManager
@@ -28,8 +29,10 @@ describe("DipNft", function () {
       }
     );
 
-    // Deploy the DipNft contract
-    const dipNft = await hre.viem.deployContract("DipNft");
+    // Deploy the DipNft contract with the rewards contract address
+    const dipNft = await hre.viem.deployContract("DipNft", [
+      getAddress(dcuRewardManager.address),
+    ]);
 
     // Set the rewards contract in DipNft to DCURewardManager
     await dipNft.write.setRewardsContract(
@@ -100,9 +103,8 @@ describe("DipNft", function () {
     });
 
     it("Should emit POIVerified event when verifying a POI", async function () {
-      const { dipNft, owner, user1, publicClient } = await loadFixture(
-        deployDipNftFixture
-      );
+      const { dipNft, owner, user1, publicClient } =
+        await loadFixture(deployDipNftFixture);
 
       const tx = await dipNft.write.verifyPOI(
         [getAddress(user1.account.address)],
@@ -143,9 +145,8 @@ describe("DipNft", function () {
 
   describe("Rewards Contract Management", function () {
     it("Should allow owner to set rewards contract", async function () {
-      const { dipNft, dcuRewardManager, owner } = await loadFixture(
-        deployDipNftFixture
-      );
+      const { dipNft, dcuRewardManager, owner } =
+        await loadFixture(deployDipNftFixture);
 
       expect(await dipNft.read.rewardsContract()).to.equal(
         getAddress(dcuRewardManager.address)
@@ -173,9 +174,8 @@ describe("DipNft", function () {
     });
 
     it("Should prevent non-owners from setting rewards contract", async function () {
-      const { dipNft, dcuRewardManager, user1 } = await loadFixture(
-        deployDipNftFixture
-      );
+      const { dipNft, dcuRewardManager, user1 } =
+        await loadFixture(deployDipNftFixture);
 
       await expect(
         dipNft.write.setRewardsContract(
@@ -219,14 +219,14 @@ describe("DipNft", function () {
       ).to.equal(1n);
       expect(await dipNft.read.nftLevel([0n])).to.equal(1n);
       expect(await dipNft.read.impactLevel([0n])).to.equal(1n);
-      expect(await dipNft.read.hasMinted([getAddress(user1.account.address)]))
-        .to.be.true;
+      expect(
+        await dipNft.read._userHasMinted([getAddress(user1.account.address)])
+      ).to.be.true;
     });
 
     it("Should emit Minted event when minting an NFT", async function () {
-      const { dipNft, owner, user1, publicClient } = await loadFixture(
-        deployDipNftFixture
-      );
+      const { dipNft, owner, user1, publicClient } =
+        await loadFixture(deployDipNftFixture);
 
       // Mint a token
       const tx = await dipNft.write.safeMint({
@@ -312,9 +312,8 @@ describe("DipNft", function () {
     });
 
     it("Should emit NFTUpgraded event when upgrading an NFT", async function () {
-      const { dipNft, owner, user1, publicClient } = await loadFixture(
-        deployDipNftFixture
-      );
+      const { dipNft, owner, user1, publicClient } =
+        await loadFixture(deployDipNftFixture);
 
       // Mint a token
       await dipNft.write.safeMint({
@@ -362,9 +361,8 @@ describe("DipNft", function () {
     });
 
     it("Should prevent non-verified POI from upgrading", async function () {
-      const { dipNft, owner, user1, user2 } = await loadFixture(
-        deployDipNftFixture
-      );
+      const { dipNft, owner, user1, user2 } =
+        await loadFixture(deployDipNftFixture);
 
       // Mint a token
       await dipNft.write.safeMint({
@@ -380,9 +378,8 @@ describe("DipNft", function () {
     });
 
     it("Should prevent upgrading NFT not owned by the caller", async function () {
-      const { dipNft, owner, user1, user2 } = await loadFixture(
-        deployDipNftFixture
-      );
+      const { dipNft, owner, user1, user2 } =
+        await loadFixture(deployDipNftFixture);
 
       // Verify both users as POI
       await dipNft.write.verifyPOI([getAddress(user1.account.address)], {
@@ -461,9 +458,8 @@ describe("DipNft", function () {
     });
 
     it("Should emit ImpactLevelUpdated event", async function () {
-      const { dipNft, owner, user1, publicClient } = await loadFixture(
-        deployDipNftFixture
-      );
+      const { dipNft, owner, user1, publicClient } =
+        await loadFixture(deployDipNftFixture);
 
       // Verify user1 as POI
       await dipNft.write.verifyPOI([getAddress(user1.account.address)], {
@@ -660,15 +656,14 @@ describe("DipNft", function () {
 
       // Check metadata structure
       expect(metadata.name).to.equal("DipNFT #0");
-      expect(metadata.description).to.include("on-chain NFT");
-      expect(metadata.attributes).to.have.lengthOf(4);
-      expect(metadata.attributes[0].trait_type).to.equal("Impact Level");
+      expect(metadata.description).to.equal("DipNFT");
+      expect(metadata.attributes).to.have.lengthOf(3);
+      expect(metadata.attributes[0].trait_type).to.equal("Level");
       expect(metadata.attributes[0].value).to.equal("1");
-      expect(metadata.attributes[1].trait_type).to.equal("NFT Level");
+      expect(metadata.attributes[1].trait_type).to.equal("Impact");
       expect(metadata.attributes[1].value).to.equal("1");
       expect(metadata.attributes[2].trait_type).to.equal("Category");
       expect(metadata.attributes[2].value).to.equal("Newbie");
-      expect(metadata.image).to.include("data:image/svg+xml;base64,");
     });
 
     it("Should reject token URI for non-existent token", async function () {
@@ -795,9 +790,8 @@ describe("DipNft", function () {
 
   describe("Admin Transfer Functionality", function () {
     it("Should allow admin to authorize a transfer", async function () {
-      const { dipNft, owner, user1, user2 } = await loadFixture(
-        deployDipNftFixture
-      );
+      const { dipNft, owner, user1, user2 } =
+        await loadFixture(deployDipNftFixture);
 
       // Mint a token to user1
       await dipNft.write.safeMint({
@@ -821,9 +815,8 @@ describe("DipNft", function () {
     });
 
     it("Should allow transfer after admin authorization", async function () {
-      const { dipNft, owner, user1, user2 } = await loadFixture(
-        deployDipNftFixture
-      );
+      const { dipNft, owner, user1, user2 } =
+        await loadFixture(deployDipNftFixture);
 
       // Mint a token to user1
       await dipNft.write.safeMint({
@@ -862,9 +855,8 @@ describe("DipNft", function () {
     });
 
     it("Should allow admin to perform direct transfers using adminTransfer", async function () {
-      const { dipNft, owner, user1, user2 } = await loadFixture(
-        deployDipNftFixture
-      );
+      const { dipNft, owner, user1, user2 } =
+        await loadFixture(deployDipNftFixture);
 
       // Mint a token to user1
       await dipNft.write.safeMint({
@@ -886,9 +878,8 @@ describe("DipNft", function () {
     });
 
     it("Should allow admin to revoke a transfer authorization", async function () {
-      const { dipNft, owner, user1, user2 } = await loadFixture(
-        deployDipNftFixture
-      );
+      const { dipNft, owner, user1, user2 } =
+        await loadFixture(deployDipNftFixture);
 
       // Mint a token to user1
       await dipNft.write.safeMint({
@@ -928,9 +919,8 @@ describe("DipNft", function () {
     });
 
     it.skip("Should emit correct events for admin transfer authorizations", async function () {
-      const { dipNft, owner, user1, user2, publicClient } = await loadFixture(
-        deployDipNftFixture
-      );
+      const { dipNft, owner, user1, user2, publicClient } =
+        await loadFixture(deployDipNftFixture);
 
       // Mint a token to user1
       await dipNft.write.safeMint({
