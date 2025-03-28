@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IDCUToken.sol";
 import "./interfaces/INFTCollection.sol";
 import "./interfaces/IRewards.sol";
+import "./DCURewardManager.sol";
 
 /**
  * @title RewardLogic
@@ -127,7 +128,33 @@ contract RewardLogic is Ownable, IRewards {
      * @param amount Amount of DCU to distribute
      */
     function distributeDCU(address user, uint256 amount) external override {
-        // This function can be called by authorized contracts
+        // Only authorized contracts can call this function
+        require(msg.sender == address(nftCollection), "Only authorized contracts can call");
+        
+        // Verify user through the reward manager if available
+        DCURewardManager rewardManager = DCURewardManager(address(0));
+        
+        // Try to get the reward manager from the NFT contract
+        try INFTCollection(nftCollection).rewardsContract() returns (address rewardsContractAddr) {
+            rewardManager = DCURewardManager(rewardsContractAddr);
+        } catch {
+            // Continue even if we can't get the reward manager
+        }
+        
+        // If we have a reward manager, check eligibility
+        if (address(rewardManager) != address(0)) {
+            try rewardManager.getVerificationStatus(user) returns (
+                bool poiVerified,
+                bool nftMinted,
+                bool rewardEligible
+            ) {
+                require(rewardEligible, "User not eligible for rewards");
+            } catch {
+                // If we can't check eligibility, continue
+            }
+        }
+        
+        // Mint tokens to the user
         require(dcuToken.mint(user, amount), "DCU distribution failed");
         
         emit DCUDistributed(

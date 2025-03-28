@@ -19,9 +19,10 @@ describe("Reward Events", function () {
     // Deploy NFT Collection
     const nftCollection = await hre.viem.deployContract("NFTCollection");
 
-    // Deploy DCU Reward Manager
+    // Deploy DCU Reward Manager with both required parameters
     const dcuRewardManager = await hre.viem.deployContract("DCURewardManager", [
       dcuToken.address,
+      nftCollection.address,
     ]);
 
     // Update the reward logic contract address in DCUToken to DCURewardManager
@@ -47,6 +48,17 @@ describe("Reward Events", function () {
     // Test DCURewardImpactProduct event
     // Set up PoI verification for user1
     await dcuRewardManager.write.setPoiVerificationStatus([user1Address, true]);
+
+    // Mock NFT ownership for user1
+    await nftCollection.write.mockBalanceOf([user1Address, 1n], {
+      account: deployer.account,
+    });
+
+    // Set reward eligibility for user1
+    await dcuRewardManager.write.setRewardEligibilityForTesting([
+      user1Address,
+      true,
+    ]);
 
     // Create a promise to watch for the event
     const impactProductEventPromise = new Promise((resolve) => {
@@ -96,6 +108,17 @@ describe("Reward Events", function () {
 
     // Set up PoI verification for user2
     await dcuRewardManager.write.setPoiVerificationStatus([user2Address, true]);
+
+    // Mock NFT ownership for user2
+    await nftCollection.write.mockBalanceOf([user2Address, 1n], {
+      account: deployer.account,
+    });
+
+    // Set reward eligibility for user2
+    await dcuRewardManager.write.setRewardEligibilityForTesting([
+      user2Address,
+      true,
+    ]);
 
     // Reward impact product claim for user2, which should reward the referrer (user1)
     await dcuRewardManager.write.rewardImpactProductClaim([user2Address, 1n]);
