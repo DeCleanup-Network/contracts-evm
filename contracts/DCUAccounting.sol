@@ -9,6 +9,16 @@ import "./interfaces/IDCUToken.sol";
  * @dev Contract for managing DCU token deposits and withdrawals with TGE restrictions
  */
 contract DCUAccounting is Ownable {
+    // Custom Errors
+    error ACCOUNTING__ReentrancyDetected();
+    error ACCOUNTING__TransfersRestrictedBeforeTGE(address account);
+    error ACCOUNTING__ZeroAmount();
+    error ACCOUNTING__InvalidAddress();
+    error ACCOUNTING__InsufficientBalance(address user, uint256 amount, uint256 balance);
+    error ACCOUNTING__TransferFailed();
+    error ACCOUNTING__AddressNotWhitelisted(address account);
+    error ACCOUNTING__NoTokensToWithdraw();
+
     // Reference to the DCU token contract
     IDCUToken public dcuToken;
     
@@ -61,7 +71,7 @@ contract DCUAccounting is Ownable {
      * @dev Modifier to prevent reentrancy attacks
      */
     modifier nonReentrant() {
-        require(!_locked, "ReentrancyGuard: reentrant call");
+        if (_locked) revert ACCOUNTING__ReentrancyDetected();
         _locked = true;
         _;
         _locked = false;
@@ -72,7 +82,8 @@ contract DCUAccounting is Ownable {
      * @param account The account to check
      */
     modifier canTransfer(address account) {
-        require(tgeCompleted || whitelisted[account], "Transfers not allowed before TGE");
+        if (!tgeCompleted && !whitelisted[account]) 
+            revert ACCOUNTING__TransfersRestrictedBeforeTGE(account);
         _;
     }
     
@@ -105,7 +116,7 @@ contract DCUAccounting is Ownable {
      * @param account The address to whitelist
      */
     function addToWhitelist(address account) external onlyOwner {
-        require(account != address(0), "Invalid address");
+        if (account == address(0)) revert ACCOUNTING__InvalidAddress();
         whitelisted[account] = true;
         emit AddressWhitelisted(account);
     }
@@ -115,7 +126,7 @@ contract DCUAccounting is Ownable {
      * @param account The address to remove
      */
     function removeFromWhitelist(address account) external onlyOwner {
-        require(whitelisted[account], "Address not whitelisted");
+        if (!whitelisted[account]) revert ACCOUNTING__AddressNotWhitelisted(account);
         whitelisted[account] = false;
         emit AddressRemovedFromWhitelist(account);
     }
@@ -125,8 +136,10 @@ contract DCUAccounting is Ownable {
      * @param amount Amount of DCU to deposit
      */
     function deposit(uint256 amount) external nonReentrant {
-        require(amount > 0, "Amount must be greater than 0");
-        require(dcuToken.transferFrom(msg.sender, address(this), amount), "Transfer failed");
+        if (amount == 0) revert ACCOUNTING__ZeroAmount();
+        
+        bool success = dcuToken.transferFrom(msg.sender, address(this), amount);
+        if (!success) revert ACCOUNTING__TransferFailed();
         
         balances[msg.sender] += amount;
         totalDeposits += amount;
@@ -145,13 +158,15 @@ contract DCUAccounting is Ownable {
      * @param amount Amount of DCU to withdraw
      */
     function withdraw(uint256 amount) external nonReentrant canTransfer(msg.sender) {
-        require(amount > 0, "Amount must be greater than 0");
-        require(balances[msg.sender] >= amount, "Insufficient balance");
+        if (amount == 0) revert ACCOUNTING__ZeroAmount();
+        if (balances[msg.sender] < amount) 
+            revert ACCOUNTING__InsufficientBalance(msg.sender, amount, balances[msg.sender]);
         
         balances[msg.sender] -= amount;
         totalDeposits -= amount;
         
-        require(dcuToken.transfer(msg.sender, amount), "Transfer failed");
+        bool success = dcuToken.transfer(msg.sender, amount);
+        if (!success) revert ACCOUNTING__TransferFailed();
         
         // Emit consolidated withdrawal event
         emit DCUWithdrawal(
@@ -168,9 +183,10 @@ contract DCUAccounting is Ownable {
      * @param amount Amount to transfer
      */
     function internalTransfer(address to, uint256 amount) external nonReentrant {
-        require(to != address(0), "Invalid recipient");
-        require(amount > 0, "Amount must be greater than 0");
-        require(balances[msg.sender] >= amount, "Insufficient balance");
+        if (to == address(0)) revert ACCOUNTING__InvalidAddress();
+        if (amount == 0) revert ACCOUNTING__ZeroAmount();
+        if (balances[msg.sender] < amount) 
+            revert ACCOUNTING__InsufficientBalance(msg.sender, amount, balances[msg.sender]);
         
         balances[msg.sender] -= amount;
         balances[to] += amount;
@@ -201,9 +217,11 @@ contract DCUAccounting is Ownable {
      * @param amount Amount of DCU to deposit
      */
     function depositFor(address user, uint256 amount) external onlyOwner nonReentrant {
-        require(user != address(0), "Invalid user address");
-        require(amount > 0, "Amount must be greater than 0");
-        require(dcuToken.transferFrom(msg.sender, address(this), amount), "Transfer failed");
+        if (user == address(0)) revert ACCOUNTING__InvalidAddress();
+        if (amount == 0) revert ACCOUNTING__ZeroAmount();
+        
+        bool success = dcuToken.transferFrom(msg.sender, address(this), amount);
+        if (!success) revert ACCOUNTING__TransferFailed();
         
         balances[user] += amount;
         totalDeposits += amount;
@@ -223,14 +241,16 @@ contract DCUAccounting is Ownable {
      * @param amount Amount of DCU to withdraw
      */
     function withdrawFor(address user, uint256 amount) external onlyOwner nonReentrant canTransfer(user) {
-        require(user != address(0), "Invalid user address");
-        require(amount > 0, "Amount must be greater than 0");
-        require(balances[user] >= amount, "Insufficient balance");
+        if (user == address(0)) revert ACCOUNTING__InvalidAddress();
+        if (amount == 0) revert ACCOUNTING__ZeroAmount();
+        if (balances[user] < amount) 
+            revert ACCOUNTING__InsufficientBalance(user, amount, balances[user]);
         
         balances[user] -= amount;
         totalDeposits -= amount;
         
-        require(dcuToken.transfer(user, amount), "Transfer failed");
+        bool success = dcuToken.transfer(user, amount);
+        if (!success) revert ACCOUNTING__TransferFailed();
         
         // Emit consolidated withdrawal event
         emit DCUWithdrawal(
@@ -247,9 +267,10 @@ contract DCUAccounting is Ownable {
      */
     function emergencyWithdraw() external onlyOwner nonReentrant {
         uint256 contractBalance = dcuToken.balanceOf(address(this));
-        require(contractBalance > 0, "No tokens to withdraw");
+        if (contractBalance == 0) revert ACCOUNTING__NoTokensToWithdraw();
         
-        require(dcuToken.transfer(owner(), contractBalance), "Transfer failed");
+        bool success = dcuToken.transfer(owner(), contractBalance);
+        if (!success) revert ACCOUNTING__TransferFailed();
         
         emit EmergencyWithdrawal(owner(), contractBalance);
     }
