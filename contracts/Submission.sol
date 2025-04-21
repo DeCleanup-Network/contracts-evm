@@ -19,6 +19,7 @@ contract Submission is Ownable, ReentrancyGuard, AccessControl {
     error SUBMISSION__Unauthorized(address user);
     error SUBMISSION__AlreadyApproved(uint256 submissionId);
     error SUBMISSION__AlreadyRejected(uint256 submissionId);
+    error SUBMISSION__NoRewardsAvailable();
     
     // Role definitions for access control
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
@@ -50,6 +51,9 @@ contract Submission is Ownable, ReentrancyGuard, AccessControl {
     // Mapping from user address to their submission IDs
     mapping(address => uint256[]) public userSubmissions;
     
+    // Mapping from user address to claimable rewards amount
+    mapping(address => uint256) public claimableRewards;
+    
     // Total number of submissions
     uint256 public submissionCount;
     
@@ -77,6 +81,19 @@ contract Submission is Ownable, ReentrancyGuard, AccessControl {
     );
     
     event DefaultRewardUpdated(uint256 oldAmount, uint256 newAmount);
+    
+    event RewardClaimed(
+        address indexed user,
+        uint256 amount,
+        uint256 timestamp
+    );
+    
+    event RewardAvailable(
+        address indexed user,
+        uint256 amount,
+        uint256 submissionId,
+        uint256 timestamp
+    );
     
     /**
      * @dev Constructor sets up the contract with DCU token, RewardLogic, and roles
@@ -149,11 +166,47 @@ contract Submission is Ownable, ReentrancyGuard, AccessControl {
             block.timestamp
         );
         
-        // Trigger reward through RewardLogic for approved submissions
+        // Instead of immediately distributing rewards, add to claimable rewards
         if (!submission.rewarded) {
             submission.rewarded = true;
-            rewardLogic.distributeDCU(submission.submitter, defaultRewardAmount);
+            claimableRewards[submission.submitter] += defaultRewardAmount;
+            
+            emit RewardAvailable(
+                submission.submitter,
+                defaultRewardAmount,
+                submissionId,
+                block.timestamp
+            );
         }
+    }
+    
+    /**
+     * @dev Claim available rewards
+     */
+    function claimRewards() external nonReentrant {
+        uint256 amount = claimableRewards[msg.sender];
+        if (amount == 0) revert SUBMISSION__NoRewardsAvailable();
+        
+        // Reset claimable rewards before external calls
+        claimableRewards[msg.sender] = 0;
+        
+        // Distribute the rewards through RewardLogic
+        rewardLogic.distributeDCU(msg.sender, amount);
+        
+        emit RewardClaimed(
+            msg.sender,
+            amount,
+            block.timestamp
+        );
+    }
+    
+    /**
+     * @dev Get available claimable rewards for a user
+     * @param user The user address to check
+     * @return amount The amount of claimable rewards
+     */
+    function getClaimableRewards(address user) external view returns (uint256) {
+        return claimableRewards[user];
     }
     
     /**

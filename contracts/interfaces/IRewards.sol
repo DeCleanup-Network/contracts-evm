@@ -3,13 +3,13 @@ pragma solidity ^0.8.28;
 
 /**
  * @title IRewards
- * @dev Interface for the rewards distribution contract
+ * @dev Interface for reward distribution contract
  */
 interface IRewards {
     /**
-     * @dev Distribute DCU tokens to a user
-     * @param user The address of the user to distribute to
-     * @param amount The amount to distribute
+     * @dev Distributes DCU tokens to a user
+     * @param user Address of the user to distribute tokens to
+     * @param amount Amount of DCU tokens to distribute
      */
     function distributeDCU(address user, uint256 amount) external;
 } 
