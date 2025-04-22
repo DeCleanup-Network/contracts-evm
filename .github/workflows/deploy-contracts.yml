@@ -6,9 +6,6 @@ on:
       - master
     paths:
       - 'contracts/**'
-  pull_request:
-    branches:
-      - master
 
   workflow_dispatch:
     inputs:
