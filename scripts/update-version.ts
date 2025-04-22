@@ -12,10 +12,15 @@ function updateVersion(customVersion?: string) {
     // Use custom version if provided
     newVersion = customVersion;
   } else {
-    // Parse current version
-    const [major, minor, patch] = packageJson.version.split(".").map(Number);
-    // Increment patch version
-    newVersion = `${major}.${minor}.${patch + 1}`;
+    // If no version exists, start with 1.0.0
+    if (!packageJson.version) {
+      newVersion = "1.0.0";
+    } else {
+      // Parse current version
+      const [major, minor, patch] = packageJson.version.split(".").map(Number);
+      // Increment patch version
+      newVersion = `${major}.${minor}.${patch + 1}`;
+    }
   }
 
   // Update package.json
