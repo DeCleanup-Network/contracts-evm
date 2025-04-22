@@ -10,7 +10,9 @@
     "verify:arbitrum-testnet": "hardhat verify --network arbitrumSepolia",
     "verify:all-arbitrum": "hardhat run scripts/verify-arbitrum.ts --network arbitrum",
     "verify:all-arbitrum-testnet": "hardhat run scripts/verify-arbitrum.ts --network arbitrumSepolia",
-    "gas:compare": "hardhat run scripts/gas-comparison.ts"
+    "gas:compare": "hardhat run scripts/gas-comparison.ts",
+    "typechain": "hardhat typechain",
+    "clean": "hardhat clean"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.2.0",
@@ -27,6 +29,8 @@
     "@nomicfoundation/hardhat-verify": "^2.0.13",
     "@nomicfoundation/hardhat-viem": "^2.0.6",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
+    "@typechain/ethers-v5": "^10.2.0",
+    "@typechain/hardhat": "^7.0.0",
     "@types/mocha": "^10.0.10",
     "chai": "^4.5.0",
     "dotenv": "^16.4.7",
