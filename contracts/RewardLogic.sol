@@ -15,12 +15,12 @@ contract RewardLogic is Ownable, IRewards {
     IDCUToken public dcuToken;
     INFTCollection public nftCollection;
     
+    // Authorization for external contracts
+    mapping(address => bool) public authorizedContracts;
+    
     // Constants
     uint256 public constant NFT_CLAIM_REWARD = 10 ether; // 10 DCU for new NFT claims
     uint256 public constant LEVEL_UPGRADE_REWARD = 10 ether; // 10 DCU for level upgrades
-    
-    // Mapping for authorized contracts that can call distributeDCU
-    mapping(address => bool) public authorizedContracts;
     
     // Events for tracking reward distributions
     event RewardDistributed(
@@ -51,6 +51,16 @@ contract RewardLogic is Ownable, IRewards {
         uint256 amount,
         uint256 timestamp,
         string reason
+    );
+
+    event NFTCollectionUpdated(
+        address indexed oldCollection,
+        address indexed newCollection
+    );
+
+    event ContractAuthorizationChanged(
+        address indexed contractAddress,
+        bool authorized
     );
     
     event ContractAuthorized(address indexed contractAddress, uint256 timestamp);
@@ -89,6 +99,28 @@ contract RewardLogic is Ownable, IRewards {
     function revokeContractAuthorization(address contractAddress) external onlyOwner {
         authorizedContracts[contractAddress] = false;
         emit ContractAuthorizationRevoked(contractAddress, block.timestamp);
+    }
+
+    /**
+     * @dev Set the NFT collection address
+     * @param _nftCollection Address of the new NFT collection contract
+     */
+    function setNFTCollection(address _nftCollection) external onlyOwner {
+        require(_nftCollection != address(0), "Invalid NFT collection address");
+        address oldCollection = address(nftCollection);
+        nftCollection = INFTCollection(_nftCollection);
+        emit NFTCollectionUpdated(oldCollection, _nftCollection);
+    }
+
+    /**
+     * @dev Authorize or revoke a contract to call distributeDCU
+     * @param contractAddress The contract address to authorize
+     * @param authorized Whether to authorize or revoke
+     */
+    function authorizeContract(address contractAddress, bool authorized) external onlyOwner {
+        require(contractAddress != address(0), "Invalid contract address");
+        authorizedContracts[contractAddress] = authorized;
+        emit ContractAuthorizationChanged(contractAddress, authorized);
     }
 
     /**
@@ -163,28 +195,26 @@ contract RewardLogic is Ownable, IRewards {
         require(authorizedContracts[msg.sender] || msg.sender == address(nftCollection), 
                 "Only authorized contracts can call");
         
-        // Verify user through the reward manager if available
+        // Initialize reward manager
         DCURewardManager rewardManager = DCURewardManager(address(0));
         
-        // Try to get the reward manager from the NFT collection if the caller is the NFT collection
-        if (msg.sender == address(nftCollection)) {
-            try INFTCollection(nftCollection).rewardsContract() returns (address rewardsContractAddr) {
-                rewardManager = DCURewardManager(rewardsContractAddr);
+        // Try to get the reward manager from the NFT collection
+        try INFTCollection(nftCollection).rewardsContract() returns (address rewardsContractAddr) {
+            rewardManager = DCURewardManager(rewardsContractAddr);
+        } catch {
+            // Continue even if we can't get the reward manager
+        }
+        
+        // If we have a reward manager and the caller is the NFT contract, check eligibility
+        if (address(rewardManager) != address(0) && msg.sender == address(nftCollection)) {
+            try rewardManager.getVerificationStatus(user) returns (
+                bool poiVerified,
+                bool nftMinted,
+                bool rewardEligible
+            ) {
+                require(rewardEligible, "User not eligible for rewards");
             } catch {
-                // Continue even if we can't get the reward manager
-            }
-            
-            // If we have a reward manager, check eligibility for NFT-based rewards
-            if (address(rewardManager) != address(0)) {
-                try rewardManager.getVerificationStatus(user) returns (
-                    bool poiVerified,
-                    bool nftMinted,
-                    bool rewardEligible
-                ) {
-                    require(rewardEligible, "User not eligible for rewards");
-                } catch {
-                    // If we can't check eligibility, continue
-                }
+                // If we can't check eligibility, continue
             }
         }
         

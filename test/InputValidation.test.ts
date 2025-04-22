@@ -1,15 +1,16 @@
-import { chai, expect } from "./helpers/setup";
+import { expect } from "chai";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { Contract } from "ethers";
 
 describe("Input Validation", function () {
-  let dipNft: any;
-  let rewardManager: any;
-  let dcuToken: any;
+  let dipNft: Contract;
+  let rewardManager: Contract;
+  let dcuToken: Contract;
   let owner: SignerWithAddress;
   let user1: SignerWithAddress;
   let user2: SignerWithAddress;
-  let nftCollection: any;
+  let nftCollection: Contract;
 
   beforeEach(async function () {
     [owner, user1, user2] = await ethers.getSigners();
@@ -20,9 +21,8 @@ describe("Input Validation", function () {
     await nftCollection.deployed();
 
     // Deploy DCU Token with temporary reward logic (will update later)
-    // DCUToken only requires a reward logic address now (no max supply)
     const DCUToken = await ethers.getContractFactory("DCUToken");
-    dcuToken = await DCUToken.deploy(await owner.getAddress());
+    dcuToken = await DCUToken.deploy(owner.address);
     await dcuToken.deployed();
 
     // Deploy Reward Manager with DCU token and NFT collection
@@ -44,23 +44,25 @@ describe("Input Validation", function () {
       .updateRewardLogicContract(rewardManager.address);
 
     // Setup rewardManager in DipNft
-    await dipNft.connect(owner).setRewardsContract(rewardManager.address);
+    await dipNft
+      .connect(owner)
+      .setRewardsContract(rewardManager.address);
 
     // Verify user1 as POI in both contracts
-    await dipNft.connect(owner).verifyPOI(await user1.getAddress());
+    await dipNft.connect(owner).verifyPOI(user1.address);
     await rewardManager
       .connect(owner)
-      .setPoiVerificationStatus(await user1.getAddress(), true);
+      .setPoiVerificationStatus(user1.address, true);
 
     // Mock NFT ownership for user1
     await nftCollection
       .connect(owner)
-      .mockBalanceOf(await user1.getAddress(), 1);
+      .mockBalanceOf(user1.address, 1);
 
     // Set reward eligibility for testing
     await rewardManager
       .connect(owner)
-      .setRewardEligibilityForTesting(await user1.getAddress(), true);
+      .setRewardEligibilityForTesting(user1.address, true);
   });
 
   describe("DipNft Input Validation", function () {
@@ -70,62 +72,82 @@ describe("Input Validation", function () {
       const tokenId = 0; // First token ID
 
       // Try with impact level 0 (invalid)
-      await expect(
-        dipNft.connect(owner).updateImpactLevel(tokenId, 0)
-      ).to.be.rejectedWith("Invalid impact level range");
+      try {
+        await dipNft.connect(owner).updateImpactLevel(tokenId, 0);
+        expect.fail("Should have thrown error");
+      } catch (error: any) {
+        expect(error.message).to.include("NFT__InvalidLevelRange");
+      }
 
       // Try with impact level 11 (invalid)
       const MAX_LEVEL = 10;
-      await expect(
-        dipNft.connect(owner).updateImpactLevel(tokenId, MAX_LEVEL + 1)
-      ).to.be.rejectedWith("Invalid impact level range");
+      try {
+        await dipNft.connect(owner).updateImpactLevel(tokenId, MAX_LEVEL + 1);
+        expect.fail("Should have thrown error");
+      } catch (error: any) {
+        expect(error.message).to.include("NFT__InvalidLevelRange");
+      }
 
       // Should work with valid impact level
-      await expect(dipNft.connect(owner).updateImpactLevel(tokenId, 5)).not.to
-        .be.rejected;
+      await dipNft.connect(owner).updateImpactLevel(tokenId, 5);
     });
 
     it("Should reject distributeReward with invalid level", async function () {
-      const userAddress = await user1.getAddress();
+      const userAddress = user1.address;
 
       // Try with level 0 (invalid)
-      await expect(
-        dipNft.connect(owner).distributeReward(userAddress, 0)
-      ).to.be.rejectedWith("Invalid level range");
+      try {
+        await dipNft.connect(owner).distributeReward(userAddress, 0);
+        expect.fail("Should have thrown error");
+      } catch (error: any) {
+        expect(error.message).to.include("NFT__InvalidLevelRange");
+      }
 
       // Try with level 11 (invalid)
       const MAX_LEVEL = 10;
-      await expect(
-        dipNft.connect(owner).distributeReward(userAddress, MAX_LEVEL + 1)
-      ).to.be.rejectedWith("Invalid level range");
+      try {
+        await dipNft
+          .connect(owner)
+          .distributeReward(userAddress, MAX_LEVEL + 1);
+        expect.fail("Should have thrown error");
+      } catch (error: any) {
+        expect(error.message).to.include("NFT__InvalidLevelRange");
+      }
 
       // Should work with valid level
-      await expect(dipNft.connect(owner).distributeReward(userAddress, 5)).not
-        .to.be.rejected;
+      await dipNft.connect(owner).distributeReward(userAddress, 5);
     });
   });
 
   describe("DCURewardManager Input Validation", function () {
     it("Should reject rewardImpactProductClaim with invalid level", async function () {
-      const userAddress = await user1.getAddress();
+      const userAddress = user1.address;
 
       // Try with level 0 (invalid)
-      await expect(
-        rewardManager.connect(owner).rewardImpactProductClaim(userAddress, 0)
-      ).to.be.rejectedWith("Invalid level range");
+      try {
+        await rewardManager
+          .connect(owner)
+          .rewardImpactProductClaim(userAddress, 0);
+        expect.fail("Should have thrown error");
+      } catch (error: any) {
+        expect(error.message).to.include("REWARD__InvalidLevel");
+      }
 
       // Try with level 11 (invalid)
       const MAX_LEVEL = 10;
-      await expect(
-        rewardManager
+      try {
+        await rewardManager
           .connect(owner)
-          .rewardImpactProductClaim(userAddress, MAX_LEVEL + 1)
-      ).to.be.rejectedWith("Invalid level range");
+          .rewardImpactProductClaim(userAddress, MAX_LEVEL + 1);
+        expect.fail("Should have thrown error");
+      } catch (error: any) {
+        expect(error.message).to.include("REWARD__InvalidLevel");
+      }
 
       // Should work with valid level
-      await expect(
-        rewardManager.connect(owner).rewardImpactProductClaim(userAddress, 5)
-      ).not.to.be.rejected;
+      await rewardManager
+        .connect(owner)
+        .rewardImpactProductClaim(userAddress, 5);
     });
 
     it("Should reject updateRewardAmounts with excessive reward amounts", async function () {
@@ -134,48 +156,61 @@ describe("Input Validation", function () {
       const excessiveAmount = ethers.utils.parseEther("1001");
 
       // Try with excessive product claim reward
-      await expect(
-        rewardManager
+      try {
+        await rewardManager
           .connect(owner)
-          .updateRewardAmounts(excessiveAmount, validAmount, validAmount)
-      ).to.be.rejectedWith("Impact product claim reward too high");
+          .updateRewardAmounts(excessiveAmount, validAmount, validAmount);
+        expect.fail("Should have thrown error");
+      } catch (error: any) {
+        expect(error.message).to.include("REWARD__ExcessiveRewardAmount");
+      }
 
       // Try with excessive referral reward
-      await expect(
-        rewardManager
+      try {
+        await rewardManager
           .connect(owner)
-          .updateRewardAmounts(validAmount, excessiveAmount, validAmount)
-      ).to.be.rejectedWith("Referral reward too high");
+          .updateRewardAmounts(validAmount, excessiveAmount, validAmount);
+        expect.fail("Should have thrown error");
+      } catch (error: any) {
+        expect(error.message).to.include("REWARD__ExcessiveRewardAmount");
+      }
 
       // Try with excessive streak reward
-      await expect(
-        rewardManager
+      try {
+        await rewardManager
           .connect(owner)
-          .updateRewardAmounts(validAmount, validAmount, excessiveAmount)
-      ).to.be.rejectedWith("Streak reward too high");
+          .updateRewardAmounts(validAmount, validAmount, excessiveAmount);
+        expect.fail("Should have thrown error");
+      } catch (error: any) {
+        expect(error.message).to.include("REWARD__ExcessiveRewardAmount");
+      }
 
       // Should work with valid amounts
-      await expect(
-        rewardManager
-          .connect(owner)
-          .updateRewardAmounts(validAmount, validAmount, validAmount)
-      ).not.to.be.rejected;
+      await rewardManager
+        .connect(owner)
+        .updateRewardAmounts(validAmount, validAmount, validAmount);
     });
 
     it("Should reject claimRewards with zero amount", async function () {
       // Try to claim 0 tokens
-      await expect(
-        rewardManager.connect(user1).claimRewards(0)
-      ).to.be.rejectedWith("Amount must be greater than zero");
+      try {
+        await rewardManager.connect(user1).claimRewards(0);
+        expect.fail("Should have thrown error");
+      } catch (error: any) {
+        expect(error.message).to.include("REWARD__ZeroAmount");
+      }
     });
 
     it("Should reject setPoiVerificationStatus with zero address", async function () {
       // Try with zero address
-      await expect(
-        rewardManager
+      try {
+        await rewardManager
           .connect(owner)
-          .setPoiVerificationStatus(ethers.constants.AddressZero, true)
-      ).to.be.rejectedWith("Invalid user address");
+          .setPoiVerificationStatus(ethers.constants.AddressZero, true);
+        expect.fail("Should have thrown error");
+      } catch (error: any) {
+        expect(error.message).to.include("REWARD__InvalidAddress");
+      }
     });
   });
 });
