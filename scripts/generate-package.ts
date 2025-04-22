@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { ethers } from "hardhat";
+import { ethers } from "ethers";
 
 async function main() {
   // Read deployment addresses
@@ -16,14 +16,14 @@ async function main() {
     fs.mkdirSync(packageDir);
   }
 
-  // Create package.json
-  const packageJson = {
+  // Create package.json for the package directory
+  const packageJsonForBuild = {
     name: "@decleanup/contracts",
     version: process.env.npm_package_version || "1.0.0",
     description: "DeCleanup Network Smart Contracts",
     main: "index.js",
     types: "index.d.ts",
-    files: ["*.js", "*.d.ts", "artifacts/**/*.json", "typechain/**/*.ts"],
+    files: ["*.js", "*.d.ts", "artifacts/**/*.json", "typechain/**/*"],
     repository: {
       type: "git",
       url: "git+https://github.com/decleanup/DeCleanup_Network.git",
@@ -36,29 +36,14 @@ async function main() {
     },
     homepage: "https://github.com/decleanup/DeCleanup_Network#readme",
     dependencies: {
-      ethers: "^6.0.0",
-      "@typechain/ethers-v6": "^0.4.0",
-      "@typechain/hardhat": "^7.0.0",
+      ethers: "^5.7.2",
     },
   };
 
   fs.writeFileSync(
     path.join(packageDir, "package.json"),
-    JSON.stringify(packageJson, null, 2)
+    JSON.stringify(packageJsonForBuild, null, 2)
   );
-
-  // Create index.ts and index.d.ts
-  const contracts = [
-    "DCUToken",
-    "RewardLogic",
-    "DCUAccounting",
-    "DCUStorage",
-    "DCURewardManager",
-    "DipNft",
-  ];
-
-  let indexTs = "";
-  let indexDTs = "";
 
   // Copy TypeChain types
   const typechainDir = path.join(__dirname, "../typechain-types");
@@ -84,17 +69,35 @@ async function main() {
 
   copyTypechainFiles(typechainDir, packageTypechainDir);
 
+  const contracts = [
+    { name: "DCUToken", path: "tokens/DCUToken.sol" },
+    { name: "RewardLogic", path: "RewardLogic.sol" },
+    { name: "DCUAccounting", path: "DCUAccounting.sol" },
+    { name: "DCUStorage", path: "DCUStorage.sol" },
+    { name: "DCURewardManager", path: "DCURewardManager.sol" },
+    { name: "DipNft", path: "tokens/DipNft.sol" },
+  ];
+
+  // Create artifacts directory
+  const artifactsDir = path.join(packageDir, "artifacts");
+  if (!fs.existsSync(artifactsDir)) {
+    fs.mkdirSync(artifactsDir);
+  }
+
+  // Generate index.js content
+  let indexJs = "";
+
   for (const contract of contracts) {
     const artifactPath = path.join(
       __dirname,
       "../artifacts/contracts",
-      contract + ".sol",
-      contract + ".json"
+      contract.path,
+      contract.name + ".json"
     );
     const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
 
     // Create contract-specific files
-    const contractDir = path.join(packageDir, "artifacts", contract);
+    const contractDir = path.join(packageDir, "artifacts", contract.name);
     if (!fs.existsSync(contractDir)) {
       fs.mkdirSync(contractDir, { recursive: true });
     }
@@ -111,47 +114,27 @@ async function main() {
       JSON.stringify({ bytecode: artifact.bytecode }, null, 2)
     );
 
-    // Add to index files with TypeChain types
-    indexTs += `import { ${contract} as ${contract}Type } from './typechain/types/${contract}';
-export const ${contract} = {
-  address: '${deployments[contract]}',
-  abi: require('./artifacts/${contract}/abi.json'),
-  bytecode: require('./artifacts/${contract}/bytecode.json').bytecode,
-  network: '${deployments.network}',
-  chainId: ${deployments.chainId},
-  contract: ${contract}Type
-};\n\n`;
-
-    indexDTs += `import { ${contract} as ${contract}Type } from './typechain/types/${contract}';
-export const ${contract}: {
-  address: string;
-  abi: any[];
-  bytecode: string;
-  network: string;
-  chainId: number;
-  contract: typeof ${contract}Type;
-};\n\n`;
+    // Add to index.js
+    indexJs += `const ${contract.name}Type = require('./typechain/types/${contract.name}').${contract.name};\n`;
+    indexJs += `exports.${contract.name} = {\n`;
+    indexJs += `  address: '${deployments[contract.name]}',\n`;
+    indexJs += `  abi: require('./artifacts/${contract.name}/abi.json'),\n`;
+    indexJs += `  bytecode: require('./artifacts/${contract.name}/bytecode.json').bytecode,\n`;
+    indexJs += `  network: '${deployments.network}',\n`;
+    indexJs += `  chainId: ${deployments.chainId},\n`;
+    indexJs += `  contract: ${contract.name}Type\n`;
+    indexJs += `};\n\n`;
   }
 
   // Add network info
-  indexTs += `export const network = {
-  name: '${deployments.network}',
-  chainId: ${deployments.chainId},
-  deployedAt: '${deployments.deployedAt}'
-};\n`;
+  indexJs += `exports.network = {\n`;
+  indexJs += `  name: '${deployments.network}',\n`;
+  indexJs += `  chainId: ${deployments.chainId},\n`;
+  indexJs += `  deployedAt: '${deployments.deployedAt}'\n`;
+  indexJs += `};\n`;
 
-  indexDTs += `export const network: {
-  name: string;
-  chainId: number;
-  deployedAt: string;
-};\n`;
-
-  // Write index files
-  fs.writeFileSync(path.join(packageDir, "index.ts"), indexTs);
-  fs.writeFileSync(path.join(packageDir, "index.d.ts"), indexDTs);
-
-  // Compile TypeScript
-  require("child_process").execSync("npx tsc index.ts", { cwd: packageDir });
+  // Write index.js
+  fs.writeFileSync(path.join(packageDir, "index.js"), indexJs);
 
   console.log("Package generated successfully!");
 }
