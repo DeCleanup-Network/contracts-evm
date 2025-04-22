@@ -17,6 +17,11 @@ on:
         options:
           - testnet
           - mainnet
+      version:
+        description: 'Custom version to use (e.g., 1.0.0). Leave empty for auto-increment.'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   deploy:
@@ -108,6 +113,18 @@ jobs:
       - name: Compile contracts
         run: npm run compile
 
+      - name: Update package version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "Using custom version: ${{ github.event.inputs.version }}"
+            echo "NEW_VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+            npx ts-node scripts/update-version.ts --set-version ${{ github.event.inputs.version }}
+          else
+            echo "Auto-incrementing version"
+            echo "NEW_VERSION=$(npx ts-node scripts/update-version.ts)" >> $GITHUB_ENV
+          fi
+        
       - name: Generate Package
         run: npx ts-node scripts/generate-package.ts
 
@@ -117,4 +134,16 @@ jobs:
           npm config set //registry.npmjs.org/:_authToken ${{ secrets.NPM_TOKEN }}
           npm publish --access public
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }} 
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ env.NEW_VERSION }}
+          name: Contracts v${{ env.NEW_VERSION }}
+          body: |
+            DeCleanup Network Smart Contracts Release
+            - Deployed to ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.network == 'mainnet' && 'Arbitrum Mainnet' || 'Arbitrum Testnet' }}
+            - Published to npm as @decleanup/contracts@${{ env.NEW_VERSION }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
