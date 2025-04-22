@@ -1,0 +1,116 @@
+name: Deploy Smart Contracts
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'contracts/**'
+  workflow_dispatch:
+    inputs:
+      network:
+        description: 'Network to deploy to (testnet/mainnet)'
+        required: true
+        default: 'testnet'
+        type: choice
+        options:
+          - testnet
+          - mainnet
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Compile contracts
+        run: npm run compile
+
+      - name: Generate TypeChain types
+        run: npm run typechain
+
+      - name: Deploy to Testnet
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.network == 'testnet')
+        run: npm run deploy:arbitrum-testnet
+        env:
+          ARBITRUM_SEPOLIA_RPC_URL: ${{ secrets.ARBITRUM_SEPOLIA_RPC_URL }}
+          PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          ARBISCAN_API_KEY: ${{ secrets.ARBISCAN_API_KEY }}
+
+      - name: Deploy to Mainnet
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.network == 'mainnet'
+        run: npm run deploy:arbitrum
+        env:
+          ARBITRUM_ONE_RPC_URL: ${{ secrets.ARBITRUM_ONE_RPC_URL }}
+          PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          ARBISCAN_API_KEY: ${{ secrets.ARBISCAN_API_KEY }}
+
+      - name: Verify Contracts on Testnet
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.network == 'testnet')
+        run: npm run verify:all-arbitrum-testnet
+        env:
+          ARBITRUM_SEPOLIA_RPC_URL: ${{ secrets.ARBITRUM_SEPOLIA_RPC_URL }}
+          ARBISCAN_API_KEY: ${{ secrets.ARBISCAN_API_KEY }}
+
+      - name: Verify Contracts on Mainnet
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.network == 'mainnet'
+        run: npm run verify:all-arbitrum
+        env:
+          ARBITRUM_ONE_RPC_URL: ${{ secrets.ARBITRUM_ONE_RPC_URL }}
+          ARBISCAN_API_KEY: ${{ secrets.ARBISCAN_API_KEY }}
+
+      - name: Upload Deployment Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-artifacts
+          path: |
+            scripts/deployed_addresses_arbitrum.json
+            typechain-types/
+          if-no-files-found: error
+
+  publish-package:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: success()
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Download Deployment Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-artifacts
+          path: .
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Generate Package
+        run: npx ts-node scripts/generate-package.ts
+
+      - name: Publish Package
+        run: |
+          cd package
+          npm config set //registry.npmjs.org/:_authToken ${{ secrets.NPM_TOKEN }}
+          npm publish --access public
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }} 
