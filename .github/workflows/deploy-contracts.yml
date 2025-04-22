@@ -6,6 +6,10 @@ on:
       - master
     paths:
       - 'contracts/**'
+  pull_request:
+    branches:
+      - master
+
   workflow_dispatch:
     inputs:
       network:
@@ -81,8 +85,8 @@ jobs:
 
   publish-package:
     needs: deploy
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    if: success()
 
     steps:
       - uses: actions/checkout@v4

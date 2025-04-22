@@ -3,6 +3,7 @@ import "@nomicfoundation/hardhat-toolbox-viem";
 import "@nomiclabs/hardhat-ethers";
 import "@nomicfoundation/hardhat-verify";
 import "@nomicfoundation/hardhat-viem";
+import "@typechain/hardhat";
 import "hardhat-gas-reporter";
 import "solidity-coverage";
 import * as dotenv from "dotenv";
@@ -16,7 +17,7 @@ const ARBITRUM_ONE_RPC_URL = process.env.ARBITRUM_ONE_RPC_URL || "";
 const ARBITRUM_SEPOLIA_RPC_URL = process.env.ARBITRUM_SEPOLIA_RPC_URL || "";
 const ARBISCAN_API_KEY = process.env.ARBISCAN_API_KEY || "";
 
-const config: HardhatUserConfig = {
+const config = {
   solidity: {
     version: "0.8.28",
     settings: {
@@ -61,6 +62,13 @@ const config: HardhatUserConfig = {
     enabled: process.env.REPORT_GAS !== undefined,
     currency: "USD",
   },
-};
+  typechain: {
+    outDir: "typechain-types",
+    target: "ethers-v5",
+    alwaysGenerateOverloads: false,
+    externalArtifacts: ["externalArtifacts/*.json"],
+    dontOverrideCompile: false,
+  },
+} as const;
 
 export default config;
