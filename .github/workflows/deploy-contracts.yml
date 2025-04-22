@@ -131,14 +131,14 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v${{ env.NEW_VERSION }}
-          name: Contracts v${{ env.NEW_VERSION }}
-          body: |
-            DeCleanup Network Smart Contracts Release
-            - Deployed to ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.network == 'mainnet' && 'Arbitrum Mainnet' || 'Arbitrum Testnet' }}
-            - Published to npm as @decleanup/contracts@${{ env.NEW_VERSION }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+    #   - name: Create GitHub Release
+    #     uses: softprops/action-gh-release@v1
+    #     with:
+    #       tag_name: v${{ env.NEW_VERSION }}
+    #       name: Contracts v${{ env.NEW_VERSION }}
+    #       body: |
+    #         DeCleanup Network Smart Contracts Release
+    #         - Deployed to ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.network == 'mainnet' && 'Arbitrum Mainnet' || 'Arbitrum Testnet' }}
+    #         - Published to npm as @decleanup/contracts@${{ env.NEW_VERSION }}
+    #     env:
+    #       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
