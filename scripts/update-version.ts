@@ -39,4 +39,14 @@ const customVersion = args.includes("--set-version")
 
 // Update version and export it for use in workflow
 const newVersion = updateVersion(customVersion);
-process.stdout.write(newVersion);
+
+// For GitHub Actions, we need to output the version in a specific format
+if (process.env.GITHUB_ACTIONS) {
+  // Output in a format that GitHub Actions can use
+  console.log(`::set-output name=version::${newVersion}`);
+  // Also set it as an environment variable
+  console.log(`::set-env name=NEW_VERSION::${newVersion}`);
+} else {
+  // For local use, just output the version
+  process.stdout.write(newVersion);
+}
