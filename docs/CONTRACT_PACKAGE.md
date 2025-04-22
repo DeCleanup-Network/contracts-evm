@@ -144,7 +144,7 @@ await token.transfer(recipient, "100");  // ❌ Error: amount must be bigint
 The package supports both Arbitrum mainnet and testnet deployments. The correct contract addresses and ABIs are automatically selected based on the network you're connecting to.
 
 ```typescript
-import { network } from '@decleanup/contracts';
+import { network } from '@co/contracts';
 
 if (network.chainId === 42161) {
   console.log('Connected to Arbitrum mainnet');

@@ -3,7 +3,7 @@ name: Deploy Smart Contracts
 on:
   push:
     branches:
-      - main
+      - master
     paths:
       - 'contracts/**'
   workflow_dispatch:
