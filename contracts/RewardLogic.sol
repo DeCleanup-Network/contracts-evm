@@ -15,6 +15,9 @@ contract RewardLogic is Ownable, IRewards {
     IDCUToken public dcuToken;
     INFTCollection public nftCollection;
     
+    // Authorization for external contracts
+    mapping(address => bool) public authorizedContracts;
+    
     // Constants
     uint256 public constant NFT_CLAIM_REWARD = 10 ether; // 10 DCU for new NFT claims
     uint256 public constant LEVEL_UPGRADE_REWARD = 10 ether; // 10 DCU for level upgrades
@@ -49,6 +52,16 @@ contract RewardLogic is Ownable, IRewards {
         uint256 timestamp,
         string reason
     );
+
+    event NFTCollectionUpdated(
+        address indexed oldCollection,
+        address indexed newCollection
+    );
+
+    event ContractAuthorizationChanged(
+        address indexed contractAddress,
+        bool authorized
+    );
     
     /**
      * @dev Constructor sets the DCU token and NFT collection addresses
@@ -58,6 +71,28 @@ contract RewardLogic is Ownable, IRewards {
     constructor(address _dcuToken, address _nftCollection) Ownable(msg.sender) {
         dcuToken = IDCUToken(_dcuToken);
         nftCollection = INFTCollection(_nftCollection);
+    }
+
+    /**
+     * @dev Set the NFT collection address
+     * @param _nftCollection Address of the new NFT collection contract
+     */
+    function setNFTCollection(address _nftCollection) external onlyOwner {
+        require(_nftCollection != address(0), "Invalid NFT collection address");
+        address oldCollection = address(nftCollection);
+        nftCollection = INFTCollection(_nftCollection);
+        emit NFTCollectionUpdated(oldCollection, _nftCollection);
+    }
+
+    /**
+     * @dev Authorize or revoke a contract to call distributeDCU
+     * @param contractAddress The contract address to authorize
+     * @param authorized Whether to authorize or revoke
+     */
+    function authorizeContract(address contractAddress, bool authorized) external onlyOwner {
+        require(contractAddress != address(0), "Invalid contract address");
+        authorizedContracts[contractAddress] = authorized;
+        emit ContractAuthorizationChanged(contractAddress, authorized);
     }
 
     /**
@@ -129,7 +164,10 @@ contract RewardLogic is Ownable, IRewards {
      */
     function distributeDCU(address user, uint256 amount) external override {
         // Only authorized contracts can call this function
-        require(msg.sender == address(nftCollection), "Only authorized contracts can call");
+        require(
+            msg.sender == address(nftCollection) || authorizedContracts[msg.sender], 
+            "Only authorized contracts can call"
+        );
         
         // Verify user through the reward manager if available
         DCURewardManager rewardManager = DCURewardManager(address(0));
@@ -141,8 +179,8 @@ contract RewardLogic is Ownable, IRewards {
             // Continue even if we can't get the reward manager
         }
         
-        // If we have a reward manager, check eligibility
-        if (address(rewardManager) != address(0)) {
+        // If we have a reward manager and the caller is the NFT contract, check eligibility
+        if (address(rewardManager) != address(0) && msg.sender == address(nftCollection)) {
             try rewardManager.getVerificationStatus(user) returns (
                 bool poiVerified,
                 bool nftMinted,
