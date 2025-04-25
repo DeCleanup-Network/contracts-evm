@@ -41,6 +41,18 @@ Where:
 | `NFT__UserHasNoNFT` | User has not minted an NFT | `user`: The user's address |
 | `NFT__TransferNotAuthorized` | Transfer is not authorized for the token | `tokenId`: The token ID |
 
+### Submission Contract Errors
+
+| Error Code | Description | Parameters |
+|------------|-------------|------------|
+| `SUBMISSION__InvalidAddress` | Invalid address (typically zero address) | None |
+| `SUBMISSION__InvalidSubmissionData` | The submission data is invalid or empty | None |
+| `SUBMISSION__SubmissionNotFound` | The specified submission ID does not exist | `submissionId`: The queried submission ID |
+| `SUBMISSION__Unauthorized` | User is not authorized to perform this action | `user`: The user's address |
+| `SUBMISSION__AlreadyApproved` | Submission has already been approved | `submissionId`: The submission ID |
+| `SUBMISSION__AlreadyRejected` | Submission has already been rejected | `submissionId`: The submission ID |
+| `SUBMISSION__NoRewardsAvailable` | No rewards are available for the user to claim | None |
+
 ### DCURewardManager Contract Errors
 
 | Error Code | Description | Parameters |

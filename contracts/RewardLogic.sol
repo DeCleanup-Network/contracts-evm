@@ -63,6 +63,9 @@ contract RewardLogic is Ownable, IRewards {
         bool authorized
     );
     
+    event ContractAuthorized(address indexed contractAddress, uint256 timestamp);
+    event ContractAuthorizationRevoked(address indexed contractAddress, uint256 timestamp);
+    
     /**
      * @dev Constructor sets the DCU token and NFT collection addresses
      * @param _dcuToken Address of the DCU token contract
@@ -71,6 +74,31 @@ contract RewardLogic is Ownable, IRewards {
     constructor(address _dcuToken, address _nftCollection) Ownable(msg.sender) {
         dcuToken = IDCUToken(_dcuToken);
         nftCollection = INFTCollection(_nftCollection);
+        
+        // Authorize the NFT collection by default
+        if (_nftCollection != address(0)) {
+            authorizedContracts[_nftCollection] = true;
+            emit ContractAuthorized(_nftCollection, block.timestamp);
+        }
+    }
+    
+    /**
+     * @dev Authorize a contract to call distributeDCU (only owner)
+     * @param contractAddress Address of the contract to authorize
+     */
+    function authorizeContract(address contractAddress) external onlyOwner {
+        require(contractAddress != address(0), "Cannot authorize zero address");
+        authorizedContracts[contractAddress] = true;
+        emit ContractAuthorized(contractAddress, block.timestamp);
+    }
+    
+    /**
+     * @dev Revoke authorization for a contract (only owner)
+     * @param contractAddress Address of the contract to revoke
+     */
+    function revokeContractAuthorization(address contractAddress) external onlyOwner {
+        authorizedContracts[contractAddress] = false;
+        emit ContractAuthorizationRevoked(contractAddress, block.timestamp);
     }
 
     /**
@@ -161,22 +189,23 @@ contract RewardLogic is Ownable, IRewards {
      * @dev Distribute DCU tokens to a user (implementation of IRewards interface)
      * @param user Address of the user to distribute to
      * @param amount Amount of DCU to distribute
+     * @return success Whether the distribution was successful
      */
-    function distributeDCU(address user, uint256 amount) external override {
+    function distributeDCU(address user, uint256 amount) external override returns (bool) {
         // Only authorized contracts can call this function
-        require(
-            msg.sender == address(nftCollection) || authorizedContracts[msg.sender], 
-            "Only authorized contracts can call"
-        );
+        require(authorizedContracts[msg.sender] || msg.sender == address(nftCollection), 
+                "Only authorized contracts can call");
         
-        // Verify user through the reward manager if available
+        // Initialize reward manager
         DCURewardManager rewardManager = DCURewardManager(address(0));
         
-        // Try to get the reward manager from the NFT contract
-        try INFTCollection(nftCollection).rewardsContract() returns (address rewardsContractAddr) {
-            rewardManager = DCURewardManager(rewardsContractAddr);
-        } catch {
-            // Continue even if we can't get the reward manager
+        // Only try to get the reward manager if we have an NFT collection
+        if (address(nftCollection) != address(0)) {
+            try INFTCollection(nftCollection).rewardsContract() returns (address rewardsContractAddr) {
+                rewardManager = DCURewardManager(rewardsContractAddr);
+            } catch {
+                // Continue even if we can't get the reward manager
+            }
         }
         
         // If we have a reward manager and the caller is the NFT contract, check eligibility
@@ -193,7 +222,8 @@ contract RewardLogic is Ownable, IRewards {
         }
         
         // Mint tokens to the user
-        require(dcuToken.mint(user, amount), "DCU distribution failed");
+        bool success = dcuToken.mint(user, amount);
+        require(success, "DCU distribution failed");
         
         emit DCUDistributed(
             user,
@@ -201,5 +231,7 @@ contract RewardLogic is Ownable, IRewards {
             block.timestamp,
             "Reward from authorized contract"
         );
+
+        return success;
     }
 } 
