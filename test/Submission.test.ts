@@ -7,11 +7,11 @@ describe("Submission", function () {
   async function deploySubmissionFixture() {
     const [owner, user, admin] = await ethers.getSigners();
 
-    // Deploy DCU token with a mock reward logic
+    // Deploy DCU token with owner as initial reward logic
     const DCUToken = await ethers.getContractFactory("DCUToken");
     const dcuToken = await DCUToken.deploy(owner.address);
 
-    // Deploy the real reward logic
+    // Deploy the real reward logic with zero address for NFT collection
     const RewardLogic = await ethers.getContractFactory("RewardLogic");
     const rewardLogic = await RewardLogic.deploy(
       dcuToken.address,
@@ -31,21 +31,37 @@ describe("Submission", function () {
     );
 
     // Add the submission contract to authorized contracts in RewardLogic
-    // We'll use a try-catch since the interface might be different
-    try {
-      // Try to use authorizeContract if it exists
-      await rewardLogic.authorizeContract(submission.address);
-    } catch (error) {
-      console.log("Unable to authorize contract:", error);
-      // If authorizeContract is not available, try an alternative method
-      // This is a no-op in tests but can help with debugging
+    const rewardLogicWithAuth = new ethers.Contract(
+      rewardLogic.address,
+      [
+        "function authorizeContract(address contractAddress) external",
+        "function distributeDCU(address user, uint256 amount) external returns (bool)",
+        "function authorizedContracts(address) external view returns (bool)",
+      ],
+      owner
+    );
+    await rewardLogicWithAuth.authorizeContract(submission.address);
+
+    // Verify the submission contract is authorized
+    const isAuthorized = await rewardLogicWithAuth.authorizedContracts(
+      submission.address
+    );
+    if (!isAuthorized) {
+      throw new Error("Failed to authorize submission contract");
     }
 
     // Grant admin role to the admin account
     const ADMIN_ROLE = await submission.ADMIN_ROLE();
     await submission.grantRole(ADMIN_ROLE, admin.address);
 
-    return { submission, dcuToken, rewardLogic, owner, user, admin };
+    return {
+      submission,
+      dcuToken,
+      rewardLogic: rewardLogicWithAuth,
+      owner,
+      user,
+      admin,
+    };
   }
 
   describe("Submission Creation", function () {

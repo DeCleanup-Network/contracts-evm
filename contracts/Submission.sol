@@ -190,8 +190,9 @@ contract Submission is Ownable, ReentrancyGuard, AccessControl {
         // Reset claimable rewards before external calls
         claimableRewards[msg.sender] = 0;
         
-        // Distribute the rewards through RewardLogic
-        rewardLogic.distributeDCU(msg.sender, amount);
+        // Distribute the rewards through RewardLogic and check the return value
+        bool success = rewardLogic.distributeDCU(msg.sender, amount);
+        require(success, "Reward distribution failed");
         
         emit RewardClaimed(
             msg.sender,

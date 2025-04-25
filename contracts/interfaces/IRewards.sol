@@ -10,6 +10,7 @@ interface IRewards {
      * @dev Distributes DCU tokens to a user
      * @param user Address of the user to distribute tokens to
      * @param amount Amount of DCU tokens to distribute
+     * @return success Whether the distribution was successful
      */
-    function distributeDCU(address user, uint256 amount) external;
+    function distributeDCU(address user, uint256 amount) external returns (bool);
 } 

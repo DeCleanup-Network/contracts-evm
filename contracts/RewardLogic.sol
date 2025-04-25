@@ -189,8 +189,9 @@ contract RewardLogic is Ownable, IRewards {
      * @dev Distribute DCU tokens to a user (implementation of IRewards interface)
      * @param user Address of the user to distribute to
      * @param amount Amount of DCU to distribute
+     * @return success Whether the distribution was successful
      */
-    function distributeDCU(address user, uint256 amount) external override {
+    function distributeDCU(address user, uint256 amount) external override returns (bool) {
         // Only authorized contracts can call this function
         require(authorizedContracts[msg.sender] || msg.sender == address(nftCollection), 
                 "Only authorized contracts can call");
@@ -198,11 +199,13 @@ contract RewardLogic is Ownable, IRewards {
         // Initialize reward manager
         DCURewardManager rewardManager = DCURewardManager(address(0));
         
-        // Try to get the reward manager from the NFT collection
-        try INFTCollection(nftCollection).rewardsContract() returns (address rewardsContractAddr) {
-            rewardManager = DCURewardManager(rewardsContractAddr);
-        } catch {
-            // Continue even if we can't get the reward manager
+        // Only try to get the reward manager if we have an NFT collection
+        if (address(nftCollection) != address(0)) {
+            try INFTCollection(nftCollection).rewardsContract() returns (address rewardsContractAddr) {
+                rewardManager = DCURewardManager(rewardsContractAddr);
+            } catch {
+                // Continue even if we can't get the reward manager
+            }
         }
         
         // If we have a reward manager and the caller is the NFT contract, check eligibility
@@ -219,7 +222,8 @@ contract RewardLogic is Ownable, IRewards {
         }
         
         // Mint tokens to the user
-        require(dcuToken.mint(user, amount), "DCU distribution failed");
+        bool success = dcuToken.mint(user, amount);
+        require(success, "DCU distribution failed");
         
         emit DCUDistributed(
             user,
@@ -227,5 +231,7 @@ contract RewardLogic is Ownable, IRewards {
             block.timestamp,
             "Reward from authorized contract"
         );
+
+        return success;
     }
 } 
