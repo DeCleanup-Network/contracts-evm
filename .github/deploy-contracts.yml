@@ -5,23 +5,23 @@ on:
     branches:
       - master
     paths:
-      - "contracts/**"
+      - 'contracts/**'
 
   workflow_dispatch:
     inputs:
       network:
-        description: "Network to deploy to (testnet/mainnet)"
+        description: 'Network to deploy to (testnet/mainnet)'
         required: true
-        default: "testnet"
+        default: 'testnet'
         type: choice
         options:
           - testnet
           - mainnet
       version:
-        description: "Custom version to use (e.g., 1.0.0). Leave empty for auto-increment."
+        description: 'Custom version to use (e.g., 1.0.0). Leave empty for auto-increment.'
         required: false
         type: string
-        default: ""
+        default: ''
 
 jobs:
   deploy:
@@ -33,9 +33,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
-          cache: "npm"
-          cache-dependency-path: "package-lock.json"
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
@@ -96,10 +96,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
-          cache: "npm"
-          cache-dependency-path: "package-lock.json"
-          registry-url: "https://registry.npmjs.org"
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Download Deployment Artifacts
         uses: actions/download-artifact@v4
@@ -109,7 +109,7 @@ jobs:
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
-
+        
       - name: Compile contracts
         run: npm run compile
 
@@ -117,17 +117,17 @@ jobs:
         id: version
         run: |
           VERSION=$(npx ts-node scripts/update-version.ts)
-          echo 'version=$VERSION' >> $GITHUB_OUTPUT
-          echo 'NEW_VERSION=$VERSION' >> $GITHUB_ENV
-
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "NEW_VERSION=$VERSION" >> $GITHUB_ENV
+        
       - name: Commit version changes
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git add package.json
-          git commit -m 'chore: bump version to ${{ env.NEW_VERSION }}'
+          git commit -m "chore: bump version to ${{ env.NEW_VERSION }}"
           git push
-
+        
       - name: Generate Package
         run: npx ts-node scripts/generate-package.ts
 
@@ -149,4 +149,4 @@ jobs:
     #         - Deployed to ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.network == 'mainnet' && 'Arbitrum Mainnet' || 'Arbitrum Testnet' }}
     #         - Published to npm as @decleanup/contracts@${{ env.NEW_VERSION }}
     #     env:
-    #       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
