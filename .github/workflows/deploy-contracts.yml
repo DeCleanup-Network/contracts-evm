@@ -121,9 +121,13 @@ jobs:
           echo "NEW_VERSION=$VERSION" >> $GITHUB_ENV
         
       - name: Commit version changes
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          NEW_VERSION: ${{ env.NEW_VERSION }}
         run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git config --global user.name 'DCU[bot]'
+          git config --global user.email 'shehufatiudeen@gmail.com'
+          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}
           git add package.json
           git commit -m "chore: bump version to ${{ env.NEW_VERSION }}"
           git push
