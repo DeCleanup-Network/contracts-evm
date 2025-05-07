@@ -39,5 +39,5 @@
     "typescript": "^5.4.2",
     "viem": "^2.27.3"
   },
-  "version": "1.0.0"
+  "version": "1.0.1"
 }
