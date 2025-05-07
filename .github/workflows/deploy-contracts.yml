@@ -136,6 +136,7 @@ jobs:
           # git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}
           git add package.json
           git commit -m "chore: bump version to ${{ env.NEW_VERSION }}"
+          git pull
           git push origin HEAD
         
       - name: Generate Package
