@@ -119,7 +119,11 @@ jobs:
       - name: Update package version
         id: version
         run: |
-          VERSION=$(npx ts-node scripts/update-version.ts)
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION=$(npx ts-node scripts/update-version.ts --set-version "${{ github.event.inputs.version }}")
+          else
+            VERSION=$(npx ts-node scripts/update-version.ts)
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "NEW_VERSION=$VERSION" >> $GITHUB_ENV
         
