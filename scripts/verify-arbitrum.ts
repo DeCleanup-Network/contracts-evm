@@ -3,10 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 // Read deployed addresses from deployment file
-const deployedAddressesPath = path.join(
-  __dirname,
-  "deployed_addresses_arbitrum.json"
-);
+const deployedAddressesPath = path.join(__dirname, "deployed_addresses.json");
 
 async function main() {
   console.log("Starting contract verification on Arbitrum...");

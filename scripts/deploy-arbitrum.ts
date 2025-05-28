@@ -95,14 +95,8 @@ async function main() {
     deployedAt: new Date().toISOString(),
   };
 
-  const deploymentsPath = path.join(
-    __dirname,
-    "deployed_addresses_arbitrum.json"
-  );
-  fs.writeFileSync(
-    deploymentsPath,
-    JSON.stringify(deployedAddresses, null, 2)
-  );
+  const deploymentsPath = path.join(__dirname, "deployed_addresses.json");
+  fs.writeFileSync(deploymentsPath, JSON.stringify(deployedAddresses, null, 2));
   console.log("Deployed addresses saved to:", deploymentsPath);
 }
 
