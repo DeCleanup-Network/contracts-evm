@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { ethers } from "ethers";
+// import { ethers } from "ethers";
 
 async function main() {
   // Read deployment addresses
@@ -86,6 +86,7 @@ async function main() {
 
   // Generate index.js content
   let indexJs = "";
+  let indexDts = ""; // TypeScript declaration file content
 
   for (const contract of contracts) {
     const artifactPath = path.join(
@@ -115,26 +116,68 @@ async function main() {
     );
 
     // Add to index.js
-    indexJs += `const ${contract.name}Type = require('./typechain/types/${contract.name}').${contract.name};\n`;
+    indexJs += `const ${
+      contract.name
+    }Factory = require('./typechain/factories/contracts/${contract.path.replace(
+      ".sol",
+      ""
+    )}__factory').${contract.name}__factory;\n`;
     indexJs += `exports.${contract.name} = {\n`;
     indexJs += `  address: '${deployments[contract.name]}',\n`;
     indexJs += `  abi: require('./artifacts/${contract.name}/abi.json'),\n`;
     indexJs += `  bytecode: require('./artifacts/${contract.name}/bytecode.json').bytecode,\n`;
     indexJs += `  network: '${deployments.network}',\n`;
     indexJs += `  chainId: ${deployments.chainId},\n`;
-    indexJs += `  contract: ${contract.name}Type\n`;
+    indexJs += `  factory: ${contract.name}Factory,\n`;
+    indexJs += `  connect: (signer) => ${contract.name}Factory.connect('${
+      deployments[contract.name]
+    }', signer)\n`;
     indexJs += `};\n\n`;
+
+    // Add to index.d.ts
+    indexDts += `import { ${
+      contract.name
+    }__factory } from './typechain/factories/contracts/${contract.path.replace(
+      ".sol",
+      ""
+    )}__factory';\n`;
+    indexDts += `import { ${
+      contract.name
+    } } from './typechain/contracts/${contract.path.replace(".sol", "")}';\n`;
+    indexDts += `export const ${contract.name}: {\n`;
+    indexDts += `  address: string;\n`;
+    indexDts += `  abi: any[];\n`;
+    indexDts += `  bytecode: string;\n`;
+    indexDts += `  network: string;\n`;
+    indexDts += `  chainId: number;\n`;
+    indexDts += `  factory: typeof ${contract.name}__factory;\n`;
+    indexDts += `  connect: (signer: ethers.Signer) => ${contract.name};\n`;
+    indexDts += `};\n\n`;
   }
 
-  // Add network info
+  // Add network info to both files
   indexJs += `exports.network = {\n`;
   indexJs += `  name: '${deployments.network}',\n`;
   indexJs += `  chainId: ${deployments.chainId},\n`;
   indexJs += `  deployedAt: '${deployments.deployedAt}'\n`;
   indexJs += `};\n`;
 
-  // Write index.js
+  indexDts += `export const network: {\n`;
+  indexDts += `  name: string;\n`;
+  indexDts += `  chainId: number;\n`;
+  indexDts += `  deployedAt: string;\n`;
+  indexDts += `};\n`;
+
+  // Write both files
   fs.writeFileSync(path.join(packageDir, "index.js"), indexJs);
+  fs.writeFileSync(path.join(packageDir, "index.d.ts"), indexDts);
+
+  // Update package.json to include types
+  packageJsonForBuild.types = "index.d.ts";
+  fs.writeFileSync(
+    path.join(packageDir, "package.json"),
+    JSON.stringify(packageJsonForBuild, null, 2)
+  );
 
   console.log("Package generated successfully!");
 }
