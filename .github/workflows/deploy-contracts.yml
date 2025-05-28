@@ -10,13 +10,13 @@ on:
   workflow_dispatch:
     inputs:
       network:
-        description: 'Network to deploy to (testnet/mainnet)'
+        description: 'Network to deploy to (arbitrum-sepolia/arbitrum)'
         required: true
-        default: 'testnet'
+        default: 'arbitrum-sepolia'
         type: choice
         options:
-          - testnet
-          - mainnet
+          - arbitrum-sepolia
+          - arbitrum
       version:
         description: 'Custom version to use (e.g., 1.0.0). Leave empty for auto-increment.'
         required: false
@@ -46,34 +46,39 @@ jobs:
       - name: Compile contracts
         run: npm run compile
 
+      - name: Update local package
+        run: |
+          chmod +x scripts/update-package.sh
+          ./scripts/update-package.sh
+
       - name: Generate TypeChain types
         run: npm run typechain
 
-      - name: Deploy to Testnet
-        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.network == 'testnet')
+      - name: Deploy to Arbitrum Sepolia
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.network == 'arbitrum-sepolia')
         run: npm run deploy:arbitrum-testnet
         env:
           ARBITRUM_SEPOLIA_RPC_URL: ${{ secrets.ARBITRUM_SEPOLIA_RPC_URL }}
           PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
           ARBISCAN_API_KEY: ${{ secrets.ARBISCAN_API_KEY }}
 
-      - name: Deploy to Mainnet
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.network == 'mainnet'
+      - name: Deploy to Arbitrum
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.network == 'arbitrum'
         run: npm run deploy:arbitrum
         env:
           ARBITRUM_ONE_RPC_URL: ${{ secrets.ARBITRUM_ONE_RPC_URL }}
           PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
           ARBISCAN_API_KEY: ${{ secrets.ARBISCAN_API_KEY }}
 
-      - name: Verify Contracts on Testnet
-        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.network == 'testnet')
+      - name: Verify Contracts on Arbitrum Sepolia
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.network == 'arbitrum-sepolia')
         run: npm run verify:all-arbitrum-testnet
         env:
           ARBITRUM_SEPOLIA_RPC_URL: ${{ secrets.ARBITRUM_SEPOLIA_RPC_URL }}
           ARBISCAN_API_KEY: ${{ secrets.ARBISCAN_API_KEY }}
 
-      - name: Verify Contracts on Mainnet
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.network == 'mainnet'
+      - name: Verify Contracts on Arbitrum
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.network == 'arbitrum'
         run: npm run verify:all-arbitrum
         env:
           ARBITRUM_ONE_RPC_URL: ${{ secrets.ARBITRUM_ONE_RPC_URL }}
@@ -84,7 +89,7 @@ jobs:
         with:
           name: deployment-artifacts
           path: |
-            scripts/deployed_addresses_arbitrum.json
+            scripts/deployed_addresses.json
             typechain-types/
           if-no-files-found: error
 
@@ -140,7 +145,7 @@ jobs:
           git push origin HEAD
         
       - name: Generate Package
-        run: npx ts-node scripts/generate-package.ts
+        run: npx ts-node scripts/generate-package.ts ${{ github.event_name == 'push' && 'arbitrum-sepolia' || github.event.inputs.network }}
 
       - name: Publish Package
         run: |
@@ -157,7 +162,7 @@ jobs:
     #       name: Contracts v${{ env.NEW_VERSION }}
     #       body: |
     #         DeCleanup Network Smart Contracts Release
-    #         - Deployed to ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.network == 'mainnet' && 'Arbitrum Mainnet' || 'Arbitrum Testnet' }}
+    #         - Deployed to ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.network == 'arbitrum' && 'Arbitrum' || 'Arbitrum Sepolia' }}
     #         - Published to npm as @decleanup/contracts@${{ env.NEW_VERSION }}
     #     env:
     #       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

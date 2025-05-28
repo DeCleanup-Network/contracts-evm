@@ -14,59 +14,73 @@ npm install @decleanup/contracts
 
 ```typescript
 import { ethers } from 'ethers';
-import { DCUToken, RewardLogic, DCUAccounting, DCUStorage, DCURewardManager, DipNft } from '@decleanup/contracts';
+import { DCUContracts, Networks } from '@decleanup/contracts';
+
+// Initialize with a specific network
+const contracts = new DCUContracts(Networks.ARBITRUM_SEPOLIA);
 
 // Initialize provider and signer
 const provider = new ethers.JsonRpcProvider('YOUR_RPC_URL');
 const signer = new ethers.Wallet('YOUR_PRIVATE_KEY', provider);
 
 // Get contract instances with full type inference
-const token = DCUToken.contract.connect(signer);
-const rewardLogic = RewardLogic.contract.connect(signer);
-const accounting = DCUAccounting.contract.connect(signer);
-const storage = DCUStorage.contract.connect(signer);
-const rewardManager = DCURewardManager.contract.connect(signer);
-const dipNft = DipNft.contract.connect(signer);
+const token = contracts.DCUToken.connect(signer);
+const rewardLogic = contracts.RewardLogic.connect(signer);
+const accounting = contracts.DCUAccounting.connect(signer);
+const storage = contracts.DCUStorage.connect(signer);
+const rewardManager = contracts.DCURewardManager.connect(signer);
+const dipNft = contracts.DipNft.connect(signer);
 ```
 
 ### Contract Information
 
-Each contract export contains the following information:
+Each contract provides the following information:
 
 ```typescript
-import { DCUToken } from '@decleanup/contracts';
+import { DCUContracts, Networks } from '@decleanup/contracts';
+
+const contracts = new DCUContracts(Networks.ARBITRUM_SEPOLIA);
 
 // Contract address
-console.log(DCUToken.address);
+console.log(contracts.DCUToken.address);
 
 // Contract ABI
-console.log(DCUToken.abi);
+console.log(contracts.DCUToken.abi);
 
 // Network information
-console.log(DCUToken.network); // 'arbitrum' or 'arbitrum-testnet'
-console.log(DCUToken.chainId); // Chain ID
+console.log(contracts.DCUToken.network); // 'arbitrum-sepolia' or 'arbitrum'
+console.log(contracts.DCUToken.chainId); // Chain ID
 
 // Type-safe contract instance
-const token = DCUToken.contract.connect(signer);
+const token = contracts.DCUToken.connect(signer);
 ```
 
-### Network Information
+### Network Support
+
+The package supports multiple networks through the `Networks` enum:
 
 ```typescript
-import { network } from '@decleanup/contracts';
+import { DCUContracts, Networks } from '@decleanup/contracts';
 
-console.log(network.name);      // Network name
-console.log(network.chainId);   // Chain ID
-console.log(network.deployedAt); // Deployment timestamp
+// Initialize for Arbitrum Sepolia
+const sepoliaContracts = new DCUContracts(Networks.ARBITRUM_SEPOLIA);
+
+// Initialize for Arbitrum Mainnet
+const mainnetContracts = new DCUContracts(Networks.ARBITRUM);
+
+// Check network information
+console.log(sepoliaContracts.DCUToken.chainId); // 421614
+console.log(mainnetContracts.DCUToken.chainId); // 42161
 ```
 
 ### Example: Token Operations
 
 ```typescript
-import { DCUToken } from '@decleanup/contracts';
+import { DCUContracts, Networks } from '@decleanup/contracts';
 
 async function transferTokens(signer: ethers.Signer, recipient: string, amount: bigint) {
-  const token = DCUToken.contract.connect(signer);
+  const contracts = new DCUContracts(Networks.ARBITRUM_SEPOLIA);
+  const token = contracts.DCUToken.connect(signer);
   
   // Type-safe transfer
   const tx = await token.transfer(recipient, amount);
@@ -81,11 +95,12 @@ async function transferTokens(signer: ethers.Signer, recipient: string, amount: 
 ### Example: Reward Operations
 
 ```typescript
-import { RewardLogic, DCURewardManager } from '@decleanup/contracts';
+import { DCUContracts, Networks } from '@decleanup/contracts';
 
 async function claimRewards(signer: ethers.Signer, submissionId: bigint) {
-  const rewardManager = DCURewardManager.contract.connect(signer);
-  const rewardLogic = RewardLogic.contract.connect(signer);
+  const contracts = new DCUContracts(Networks.ARBITRUM_SEPOLIA);
+  const rewardManager = contracts.DCURewardManager.connect(signer);
+  const rewardLogic = contracts.RewardLogic.connect(signer);
   
   // Check if rewards are available
   const isAvailable = await rewardLogic.isRewardAvailable(submissionId);
@@ -102,10 +117,11 @@ async function claimRewards(signer: ethers.Signer, submissionId: bigint) {
 ### Example: NFT Operations
 
 ```typescript
-import { DipNft } from '@decleanup/contracts';
+import { DCUContracts, Networks } from '@decleanup/contracts';
 
 async function mintNFT(signer: ethers.Signer, to: string, tokenURI: string) {
-  const nft = DipNft.contract.connect(signer);
+  const contracts = new DCUContracts(Networks.ARBITRUM_SEPOLIA);
+  const nft = contracts.DipNft.connect(signer);
   
   // Mint new NFT
   const tx = await nft.mint(to, tokenURI);
@@ -130,27 +146,14 @@ The package includes TypeChain-generated type definitions, providing:
 - Compile-time error checking
 
 ```typescript
-import { DCUToken } from '@decleanup/contracts';
+import { DCUContracts, Networks } from '@decleanup/contracts';
 
-const token = DCUToken.contract.connect(signer);
+const contracts = new DCUContracts(Networks.ARBITRUM_SEPOLIA);
+const token = contracts.DCUToken.connect(signer);
 
 // Type-safe method calls
 await token.transfer(recipient, amount); // ✅ Correct
 await token.transfer(recipient, "100");  // ❌ Error: amount must be bigint
-```
-
-## Network Support
-
-The package supports both Arbitrum mainnet and testnet deployments. The correct contract addresses and ABIs are automatically selected based on the network you're connecting to.
-
-```typescript
-import { network } from '@co/contracts';
-
-if (network.chainId === 42161) {
-  console.log('Connected to Arbitrum mainnet');
-} else if (network.chainId === 421614) {
-  console.log('Connected to Arbitrum testnet');
-}
 ```
 
 ## Error Handling
@@ -158,11 +161,12 @@ if (network.chainId === 42161) {
 All contract interactions include proper error handling:
 
 ```typescript
-import { DCUToken } from '@decleanup/contracts';
+import { DCUContracts, Networks } from '@decleanup/contracts';
 
 async function safeTransfer(signer: ethers.Signer, recipient: string, amount: bigint) {
   try {
-    const token = DCUToken.contract.connect(signer);
+    const contracts = new DCUContracts(Networks.ARBITRUM_SEPOLIA);
+    const token = contracts.DCUToken.connect(signer);
     const tx = await token.transfer(recipient, amount);
     await tx.wait();
     return true;
