@@ -201,7 +201,7 @@ async function claimRewards(signer: ethers.Signer, amount: bigint) {
 ```typescript
 import { DCUContracts, Networks } from '@decleanup/contracts';
 
-async function mintNFT(signer: ethers.Signer) {
+async function mintNFT(signer: ethers.Signer, to: string, tokenURI: string) {
   const contracts = new DCUContracts(Networks.ARBITRUM_SEPOLIA);
   const nft = contracts.DipNft.connect(signer);
   

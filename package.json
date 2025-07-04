@@ -42,5 +42,5 @@
     "typescript": "^5.4.2",
     "viem": "^2.27.3"
   },
-  "version": "1.0.2"
+  "version": "1.0.3"
 }
