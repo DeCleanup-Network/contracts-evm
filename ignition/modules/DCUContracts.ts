@@ -20,7 +20,20 @@ export default buildModule("DCUContracts", (m) => {
   const dcuToken = m.contract("DCUToken", [rewardLogic]);
 
   // Deploy the DCURewardManager contract with DCUToken address
-  const dcuRewardManager = m.contract("DCURewardManager", [dcuToken]);
+  const dcuRewardManager = m.contract("DCURewardManager", [
+    dcuToken,
+    nftCollection,
+  ]);
+
+  // Deploy the DipNft contract with DCURewardManager address
+  const dipNft = m.contract("DipNft", [dcuRewardManager]);
+
+  // Deploy the Submission contract
+  const submission = m.contract("Submission", [
+    dcuToken,
+    rewardLogic,
+    "10000000000000000000",
+  ]); // 10 DCU default reward
 
   // Return all deployed contracts
   return {
@@ -30,5 +43,7 @@ export default buildModule("DCUContracts", (m) => {
     rewardLogic,
     dcuToken,
     dcuRewardManager,
+    dipNft,
+    submission,
   };
 });

@@ -12,7 +12,10 @@
     "verify:all-arbitrum-testnet": "hardhat run scripts/verify-arbitrum.ts --network arbitrumSepolia",
     "gas:compare": "hardhat run scripts/gas-comparison.ts",
     "typechain": "hardhat typechain",
-    "clean": "hardhat clean"
+    "clean": "hardhat clean",
+    "generate-package": "ts-node scripts/generate-package.ts",
+    "generate-package:arbitrum": "ts-node scripts/generate-package.ts arbitrum",
+    "generate-package:arbitrum-sepolia": "ts-node scripts/generate-package.ts arbitrum-sepolia"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.2.0",
