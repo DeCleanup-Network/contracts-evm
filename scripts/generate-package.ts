@@ -70,6 +70,8 @@ async function main() {
     { name: "DCUStorage", path: "DCUStorage.sol" },
     { name: "DCURewardManager", path: "DCURewardManager.sol" },
     { name: "DipNft", path: "tokens/DipNft.sol" },
+    { name: "NFTCollection", path: "tokens/NFTCollection.sol" },
+    { name: "Submission", path: "Submission.sol" },
   ];
 
   // Read deployment addresses

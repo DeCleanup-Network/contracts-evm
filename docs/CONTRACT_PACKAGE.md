@@ -1,4 +1,4 @@
-# DeCleanup Network Smart Contracts
+# DeCleanup Network Smart Contracts Package
 
 This package provides the smart contracts for the DeCleanup Network, including TypeChain-generated type definitions for type-safe contract interactions.
 
@@ -6,6 +6,91 @@ This package provides the smart contracts for the DeCleanup Network, including T
 
 ```bash
 npm install @decleanup/contracts
+```
+
+## Overview
+
+The DeCleanup Network smart contracts package includes all core contracts for the environmental cleanup platform:
+
+### Core Token Contracts
+- **DCUToken** - Main ERC-20 utility token with dynamic supply
+- **DCUStorage** - Token storage with TGE restrictions and staking
+- **DCUAccounting** - Token deposit/withdrawal management
+
+### NFT & Reward Contracts
+- **DipNft** - Soulbound NFTs representing Impact Products
+- **NFTCollection** - Basic NFT collection for testing
+- **DCURewardManager** - Manages DCU rewards for various activities
+- **RewardLogic** - Handles reward distribution logic
+
+### Additional Contracts
+- **Submission** - Handles form submissions from the DeCleanup dapp
+
+## Package Generation
+
+### Prerequisites
+
+1. **Compile Contracts:**
+   ```bash
+   npm run compile
+   ```
+
+2. **Generate TypeChain Types:**
+   ```bash
+   npm run typechain
+   ```
+
+3. **Deploy Contracts:**
+   ```bash
+   # For Arbitrum Mainnet
+   npm run deploy:arbitrum
+   
+   # For Arbitrum Sepolia Testnet
+   npm run deploy:arbitrum-testnet
+   ```
+
+### Generating the Package
+
+#### For Arbitrum Mainnet
+```bash
+npm run generate-package:arbitrum
+```
+
+#### For Arbitrum Sepolia Testnet
+```bash
+npm run generate-package:arbitrum-sepolia
+```
+
+#### For Custom Network
+```bash
+npm run generate-package <network-name>
+```
+
+### Package Structure
+
+The generated package will have the following structure:
+
+```
+package/
+├── package.json
+├── index.js
+├── index.d.ts
+└── <network-name>/
+    ├── config.json
+    ├── index.js
+    ├── index.d.ts
+    ├── artifacts/
+    │   ├── DCUToken/
+    │   │   ├── abi.json
+    │   │   └── bytecode.json
+    │   ├── DipNft/
+    │   │   ├── abi.json
+    │   │   └── bytecode.json
+    │   └── ... (other contracts)
+    └── typechain/
+        ├── contracts/
+        ├── factories/
+        └── ... (TypeChain files)
 ```
 
 ## Usage
@@ -30,6 +115,8 @@ const accounting = contracts.DCUAccounting.connect(signer);
 const storage = contracts.DCUStorage.connect(signer);
 const rewardManager = contracts.DCURewardManager.connect(signer);
 const dipNft = contracts.DipNft.connect(signer);
+const submission = contracts.Submission.connect(signer);
+const nftCollection = contracts.NFTCollection.connect(signer);
 ```
 
 ### Contract Information
@@ -97,20 +184,15 @@ async function transferTokens(signer: ethers.Signer, recipient: string, amount: 
 ```typescript
 import { DCUContracts, Networks } from '@decleanup/contracts';
 
-async function claimRewards(signer: ethers.Signer, submissionId: bigint) {
+async function claimRewards(signer: ethers.Signer, amount: bigint) {
   const contracts = new DCUContracts(Networks.ARBITRUM_SEPOLIA);
   const rewardManager = contracts.DCURewardManager.connect(signer);
-  const rewardLogic = contracts.RewardLogic.connect(signer);
-  
-  // Check if rewards are available
-  const isAvailable = await rewardLogic.isRewardAvailable(submissionId);
-  if (!isAvailable) {
-    throw new Error('Rewards not available for this submission');
-  }
   
   // Claim rewards
-  const tx = await rewardManager.claimRewards(submissionId);
+  const tx = await rewardManager.claimRewards(amount);
   await tx.wait();
+  
+  return tx;
 }
 ```
 
@@ -123,8 +205,8 @@ async function mintNFT(signer: ethers.Signer, to: string, tokenURI: string) {
   const contracts = new DCUContracts(Networks.ARBITRUM_SEPOLIA);
   const nft = contracts.DipNft.connect(signer);
   
-  // Mint new NFT
-  const tx = await nft.mint(to, tokenURI);
+  // Mint new NFT (requires PoI verification)
+  const tx = await nft.safeMint();
   await tx.wait();
   
   // Get token ID
@@ -133,6 +215,28 @@ async function mintNFT(signer: ethers.Signer, to: string, tokenURI: string) {
   const tokenId = event?.args[2];
   
   return tokenId;
+}
+```
+
+### Example: Submission Operations
+
+```typescript
+import { DCUContracts, Networks } from '@decleanup/contracts';
+
+async function createSubmission(signer: ethers.Signer, dataURI: string) {
+  const contracts = new DCUContracts(Networks.ARBITRUM_SEPOLIA);
+  const submission = contracts.Submission.connect(signer);
+  
+  // Create a new submission
+  const tx = await submission.createSubmission(dataURI);
+  await tx.wait();
+  
+  // Get submission ID from event
+  const receipt = await tx.wait();
+  const event = receipt.logs.find(log => log.fragment.name === 'SubmissionCreated');
+  const submissionId = event?.args[0];
+  
+  return submissionId;
 }
 ```
 
@@ -176,6 +280,78 @@ async function safeTransfer(signer: ethers.Signer, recipient: string, amount: bi
   }
 }
 ```
+
+## Adding New Contracts
+
+To add a new contract to the package:
+
+1. **Add to Contract List**: Update the `contracts` array in `scripts/generate-package.ts`
+   ```typescript
+   const contracts: ContractInfo[] = [
+     // ... existing contracts
+     { name: "NewContract", path: "NewContract.sol" },
+   ];
+   ```
+
+2. **Update Deployment Script**: Add deployment logic to `scripts/deploy-arbitrum.ts`
+   ```typescript
+   // Deploy NewContract
+   const NewContract = await ethers.getContractFactory("NewContract");
+   const newContract = await NewContract.deploy(/* constructor args */);
+   await newContract.deployed();
+   const newContractAddress = newContract.address;
+   ```
+
+3. **Update Ignition Module**: Add to `ignition/modules/DCUContracts.ts`
+   ```typescript
+   const newContract = m.contract("NewContract", [/* constructor args */]);
+   ```
+
+4. **Update Deployed Addresses**: Add to the `deployedAddresses` object
+   ```typescript
+   const deployedAddresses = {
+     // ... existing addresses
+     NewContract: newContractAddress,
+   };
+   ```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Missing Contract Artifacts**
+   - Ensure contracts are compiled: `npm run compile`
+   - Check that the contract path in `generate-package.ts` is correct
+
+2. **Missing Deployment Addresses**
+   - Deploy contracts first: `npm run deploy:arbitrum`
+   - Verify `deployed_addresses.json` exists and contains all contracts
+
+3. **TypeChain Types Missing**
+   - Generate types: `npm run typechain`
+   - Check that `typechain-types/` directory exists
+
+4. **Network Not Supported**
+   - Add network configuration to `generate-package.ts`
+   - Update deployment scripts for the new network
+
+### Verification
+
+After generating the package:
+
+1. **Check Package Structure**: Verify all contracts are included
+2. **Test Integration**: Use the package in a test project
+3. **Verify Addresses**: Confirm contract addresses match deployments
+4. **Test TypeScript**: Ensure TypeScript types work correctly
+
+## Publishing
+
+To publish the package to npm:
+
+1. **Build Package**: Generate the package for all networks
+2. **Test Package**: Verify functionality in a test environment
+3. **Update Version**: Increment version in `package.json`
+4. **Publish**: Use `npm publish` in the package directory
 
 ## Contributing
 

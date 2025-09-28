@@ -65,6 +65,14 @@ async function main() {
   const dcuRewardManagerAddress = dcuRewardManager.address;
   console.log("DCURewardManager deployed to:", dcuRewardManagerAddress);
 
+  // Deploy NFTCollection
+  console.log("Deploying NFTCollection...");
+  const NFTCollection = await ethers.getContractFactory("NFTCollection");
+  const nftCollection = await NFTCollection.deploy();
+  await nftCollection.deployed();
+  const nftCollectionAddress = nftCollection.address;
+  console.log("NFTCollection deployed to:", nftCollectionAddress);
+
   // Deploy DipNft with the reward manager address
   console.log("Deploying DipNft...");
   const DipNft = await ethers.getContractFactory("DipNft");
@@ -72,6 +80,18 @@ async function main() {
   await dipNft.deployed();
   const dipNftAddress = dipNft.address;
   console.log("DipNft deployed to:", dipNftAddress);
+
+  // Deploy Submission contract
+  console.log("Deploying Submission...");
+  const Submission = await ethers.getContractFactory("Submission");
+  const submission = await Submission.deploy(
+    dcuTokenAddress,
+    rewardLogicAddress,
+    ethers.utils.parseEther("10") // Default reward amount: 10 DCU
+  );
+  await submission.deployed();
+  const submissionAddress = submission.address;
+  console.log("Submission deployed to:", submissionAddress);
 
   // Update NFT collection references in both contracts
   console.log("Updating NFT collection in RewardLogic...");
@@ -90,6 +110,8 @@ async function main() {
     DCUStorage: dcuStorageAddress,
     DCURewardManager: dcuRewardManagerAddress,
     DipNft: dipNftAddress,
+    NFTCollection: nftCollectionAddress,
+    Submission: submissionAddress,
     network: (await ethers.provider.getNetwork()).name,
     chainId: Number((await ethers.provider.getNetwork()).chainId),
     deployedAt: new Date().toISOString(),
