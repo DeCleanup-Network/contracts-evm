@@ -72,6 +72,32 @@ export const LockErrorMap: ErrorMessageMap = {
   LOCK__NotOwner: "You aren't the owner",
 };
 
+export const StakeErrorMap: ErrorMessageMap = {
+  STAKE__InsufficientStakeAmount: "Stake amount below minimum required",
+  STAKE__NoStakeFound: "No active stake found for this address",
+  STAKE__StakeAlreadyExists: "Address already has an active stake",
+  STAKE__UnstakingLocked: "Unstaking is locked until delay period passes",
+  STAKE__InvalidDCUToken: "Invalid DCU token address",
+  STAKE__InvalidAmount: "Invalid stake amount",
+  STAKE__FailedToTransfer: "Token transfer failed",
+};
+
+export const RegistryErrorMap: ErrorMessageMap = {
+  REGISTRY__InvalidAddress: "Invalid address provided",
+  REGISTRY__InvalidVerifierStaking: "Invalid VerifierStaking contract address",
+  REGISTRY__AlreadyVerifier: "Address is already a verifier",
+  REGISTRY__NotVerifier: "Address is not a verifier",
+};
+
+// PoIVerificationManager errors
+export const PoIVerificationManagerErrorMap: ErrorMessageMap = {
+  POIVERIFICATION__InvalidVerifierRegistry: "Invalid VerifierRegistry address",
+  POIVERIFICATION__InvalidPoiId: "Invalid PoI ID",
+  POIVERIFICATION__NotAuthorizedVerifier: "Not authorized verifier",
+  POIVERIFICATION__AlreadyVerified: "Already verified",
+  POIVERIFICATION__InvalidStatus: "Invalid status"
+};
+
 /**
  * Normalizes an error message by extracting the custom error type if present
  * @param error The error message to normalize
@@ -102,6 +128,9 @@ export function normalizeErrorMessage(error: Error | string): string {
         AccountingErrorMap,
         StorageErrorMap,
         LockErrorMap,
+        StakeErrorMap,
+        RegistryErrorMap,
+        PoIVerificationManagerErrorMap,
       ];
 
       for (const map of errorMaps) {
@@ -113,6 +142,11 @@ export function normalizeErrorMessage(error: Error | string): string {
       // If no mapping found, return the custom error type
       return errorType;
     }
+  }
+
+  // Special handling for Ownable errors
+  if (errorMsg.includes("OwnableUnauthorizedAccount")) {
+    return "OwnableUnauthorizedAccount";
   }
 
   return errorMsg;
