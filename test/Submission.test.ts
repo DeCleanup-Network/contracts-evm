@@ -21,14 +21,26 @@ describe("Submission", function () {
     // Update reward logic in token
     await dcuToken.updateRewardLogicContract(rewardLogic.address);
 
+    // Deploy DCURewardManager with placeholder NFT address
+    const DCURewardManager = await ethers.getContractFactory("DCURewardManager");
+    const rewardManager = await DCURewardManager.deploy(
+      dcuToken.address,
+      ethers.constants.AddressZero
+    );
+    await rewardManager.deployed();
+
     // Deploy submission contract
     const defaultRewardAmount = ethers.utils.parseEther("10"); // 10 DCU tokens
     const Submission = await ethers.getContractFactory("Submission");
     const submission = await Submission.deploy(
       dcuToken.address,
       rewardLogic.address,
+      rewardManager.address,
       defaultRewardAmount
     );
+    await submission.deployed();
+
+    await rewardManager.setSubmissionContract(submission.address);
 
     // Add the submission contract to authorized contracts in RewardLogic
     const rewardLogicWithAuth = new ethers.Contract(
@@ -53,6 +65,7 @@ describe("Submission", function () {
     // Grant admin role to the admin account
     const ADMIN_ROLE = await submission.ADMIN_ROLE();
     await submission.grantRole(ADMIN_ROLE, admin.address);
+    await submission.connect(admin).updateSubmissionFee(0, false);
 
     return {
       submission,
@@ -61,17 +74,43 @@ describe("Submission", function () {
       owner,
       user,
       admin,
+      rewardManager,
     };
   }
+
+  const defaultSubmissionParams = {
+    dataURI: "ipfs://QmTest123",
+    beforePhotoHash: "ipfs://before",
+    afterPhotoHash: "ipfs://after",
+    impactFormDataHash: "",
+    lat: 0,
+    lng: 0,
+    referrer: ethers.constants.AddressZero,
+  };
+
+  const buildSubmissionArgs = (
+    overrides: Partial<typeof defaultSubmissionParams> = {}
+  ) => {
+    const params = { ...defaultSubmissionParams, ...overrides };
+    return [
+      params.dataURI,
+      params.beforePhotoHash,
+      params.afterPhotoHash,
+      params.impactFormDataHash,
+      params.lat,
+      params.lng,
+      params.referrer,
+    ] as const;
+  };
 
   describe("Submission Creation", function () {
     it("Should create a submission with the correct data", async function () {
       const { submission, user } = await loadFixture(deploySubmissionFixture);
 
       // Create a submission
-      const dataURI = "ipfs://QmTest123";
-      const tx = await submission.connect(user).createSubmission(dataURI);
-      await tx.wait();
+      await submission
+        .connect(user)
+        .createSubmission(...buildSubmissionArgs());
 
       // Get the submission ID from events (should be 0 for the first submission)
       const submissionId = 0;
@@ -93,7 +132,9 @@ describe("Submission", function () {
 
       // Try to create a submission with empty data URI
       try {
-        await submission.connect(user).createSubmission("");
+        await submission
+          .connect(user)
+          .createSubmission(...buildSubmissionArgs({ dataURI: "" }));
         expect.fail("Should have reverted");
       } catch (error: any) {
         expect(error.message).to.include("SUBMISSION__InvalidSubmissionData");
@@ -108,8 +149,9 @@ describe("Submission", function () {
       );
 
       // Create a submission
-      const dataURI = "ipfs://QmTest123";
-      await submission.connect(user).createSubmission(dataURI);
+      await submission
+        .connect(user)
+        .createSubmission(...buildSubmissionArgs());
       const submissionId = 0;
 
       // Check initial claimable rewards
@@ -157,7 +199,9 @@ describe("Submission", function () {
       const { submission, user } = await loadFixture(deploySubmissionFixture);
 
       // Create a submission
-      await submission.connect(user).createSubmission("ipfs://QmTest123");
+      await submission
+        .connect(user)
+        .createSubmission(...buildSubmissionArgs());
       const submissionId = 0;
 
       // Try to approve the submission as non-admin user
@@ -188,7 +232,9 @@ describe("Submission", function () {
       );
 
       // Create and approve a submission
-      await submission.connect(user).createSubmission("ipfs://QmTest123");
+      await submission
+        .connect(user)
+        .createSubmission(...buildSubmissionArgs());
       await submission.connect(admin).approveSubmission(0);
 
       // Try to approve it again
@@ -208,7 +254,9 @@ describe("Submission", function () {
       );
 
       // Create and approve a submission
-      await submission.connect(user).createSubmission("ipfs://QmTest123");
+      await submission
+        .connect(user)
+        .createSubmission(...buildSubmissionArgs());
       await submission.connect(admin).approveSubmission(0);
 
       // Check claimable rewards before claiming
@@ -257,11 +305,15 @@ describe("Submission", function () {
       );
 
       // Create and approve first submission
-      await submission.connect(user).createSubmission("ipfs://QmTest1");
+      await submission
+        .connect(user)
+        .createSubmission(...buildSubmissionArgs({ dataURI: "ipfs://QmTest1" }));
       await submission.connect(admin).approveSubmission(0);
 
       // Create and approve second submission
-      await submission.connect(user).createSubmission("ipfs://QmTest2");
+      await submission
+        .connect(user)
+        .createSubmission(...buildSubmissionArgs({ dataURI: "ipfs://QmTest2" }));
       await submission.connect(admin).approveSubmission(1);
 
       // Check cumulative claimable rewards
@@ -297,7 +349,9 @@ describe("Submission", function () {
       );
 
       // Create a submission
-      await submission.connect(user).createSubmission("ipfs://QmTest123");
+      await submission
+        .connect(user)
+        .createSubmission(...buildSubmissionArgs());
       const submissionId = 0;
 
       // Admin rejects the submission
@@ -320,7 +374,9 @@ describe("Submission", function () {
       );
 
       // Create and reject a submission
-      await submission.connect(user).createSubmission("ipfs://QmTest123");
+      await submission
+        .connect(user)
+        .createSubmission(...buildSubmissionArgs());
       await submission.connect(admin).rejectSubmission(0);
 
       // Try to reject it again

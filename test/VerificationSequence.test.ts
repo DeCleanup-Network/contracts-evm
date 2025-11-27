@@ -1,4 +1,4 @@
-import { expect } from "chai";
+import { expect, expectRevert } from "./helpers/setup";
 import hre from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox-viem/network-helpers";
 import { getAddress } from "viem";
@@ -20,19 +20,19 @@ describe("Verification Sequence", function () {
     ]);
 
     // Deploy NFT collection with rewards contract address
-    const dipNft = await hre.viem.deployContract("DipNft", [
+    const impactProductNft = await hre.viem.deployContract("ImpactProductNFT", [
       dcuRewardManager.address,
     ]);
 
     // Update the NFT address in DCURewardManager
-    await dcuRewardManager.write.updateNftCollection([dipNft.address], {
+    await dcuRewardManager.write.updateNftCollection([impactProductNft.address], {
       account: owner.account,
     });
 
     // Deploy the actual RewardLogic contract
     const rewardLogic = await hre.viem.deployContract("RewardLogic", [
       dcuToken.address,
-      dipNft.address,
+      impactProductNft.address,
     ]);
 
     // Update the reward logic contract address in DCUToken
@@ -40,14 +40,14 @@ describe("Verification Sequence", function () {
       account: owner.account,
     });
 
-    // Set the rewards contract in DipNft to the DCURewardManager
-    await dipNft.write.setRewardsContract([dcuRewardManager.address], {
+    // Set the rewards contract in ImpactProductNFT to the DCURewardManager
+    await impactProductNft.write.setRewardsContract([dcuRewardManager.address], {
       account: owner.account,
     });
 
     return {
       dcuToken,
-      dipNft,
+      impactProductNft,
       dcuRewardManager,
       rewardLogic,
       owner,
@@ -88,7 +88,7 @@ describe("Verification Sequence", function () {
     });
 
     it("Should update NFT mint status correctly", async function () {
-      const { dcuRewardManager, dipNft, user1, owner } = await loadFixture(
+      const { dcuRewardManager, impactProductNft, user1, owner } = await loadFixture(
         deployContractsFixture
       );
 
@@ -99,12 +99,12 @@ describe("Verification Sequence", function () {
       );
 
       // Verify the user for NFT minting
-      await dipNft.write.verifyPOI([getAddress(user1.account.address)], {
+      await impactProductNft.write.verifyPOI([getAddress(user1.account.address)], {
         account: owner.account,
       });
 
       // User mints an NFT
-      await dipNft.write.safeMint({
+      await impactProductNft.write.safeMint({
         account: user1.account,
       });
 
@@ -118,18 +118,19 @@ describe("Verification Sequence", function () {
     });
 
     it("Should enforce proper sequence: PoI → NFT → Rewards", async function () {
-      const { dcuRewardManager, dipNft, user1, user2, owner } =
+      const { dcuRewardManager, impactProductNft, user1, user2, owner } =
         await loadFixture(deployContractsFixture);
 
       // Attempt to mint without PoI verification should fail
-      await expect(
-        dipNft.write.safeMint({
+      await expectRevert(
+        impactProductNft.simulate.safeMint({
           account: user1.account,
-        })
-      ).to.be.rejectedWith("You are not a verified POI");
+        }),
+        "You are not a verified POI"
+      );
 
       // Verify PoI for user1
-      await dipNft.write.verifyPOI([getAddress(user1.account.address)], {
+      await impactProductNft.write.verifyPOI([getAddress(user1.account.address)], {
         account: owner.account,
       });
       await dcuRewardManager.write.setPoiVerificationStatus(
@@ -138,12 +139,12 @@ describe("Verification Sequence", function () {
       );
 
       // Now user1 can mint
-      await dipNft.write.safeMint({
+      await impactProductNft.write.safeMint({
         account: user1.account,
       });
 
       // Verify PoI only for user2 (no NFT minted yet)
-      await dipNft.write.verifyPOI([getAddress(user2.account.address)], {
+      await impactProductNft.write.verifyPOI([getAddress(user2.account.address)], {
         account: owner.account,
       });
       await dcuRewardManager.write.setPoiVerificationStatus(
@@ -152,12 +153,13 @@ describe("Verification Sequence", function () {
       );
 
       // Try to reward a user without complete verification
-      await expect(
-        dcuRewardManager.write.rewardImpactProductClaim(
+      await expectRevert(
+        dcuRewardManager.simulate.rewardImpactProductClaim(
           [getAddress(user2.account.address), 1n],
           { account: owner.account }
-        )
-      ).to.be.rejectedWith("User not eligible for rewards");
+        ),
+        "User not eligible for rewards"
+      );
 
       // Should successfully reward a fully verified user
       await dcuRewardManager.write.rewardImpactProductClaim(
@@ -173,30 +175,30 @@ describe("Verification Sequence", function () {
     });
 
     it("Should handle NFT upgrades correctly", async function () {
-      const { dcuRewardManager, dipNft, user1, owner } = await loadFixture(
+      const { dcuRewardManager, impactProductNft, user1, owner } = await loadFixture(
         deployContractsFixture
       );
 
       // Complete verification sequence for user1
-      await dipNft.write.verifyPOI([getAddress(user1.account.address)], {
+      await impactProductNft.write.verifyPOI([getAddress(user1.account.address)], {
         account: owner.account,
       });
       await dcuRewardManager.write.setPoiVerificationStatus(
         [getAddress(user1.account.address), true],
         { account: owner.account }
       );
-      await dipNft.write.safeMint({
+      await impactProductNft.write.safeMint({
         account: user1.account,
       });
 
       // Get the user's token ID
-      const userData = await dipNft.read.getUserNFTData([
+      const userData = await impactProductNft.read.getUserNFTData([
         getAddress(user1.account.address),
       ]);
       const tokenId = userData[0];
 
       // Upgrade the NFT
-      await dipNft.write.upgradeNFT([tokenId], {
+      await impactProductNft.write.upgradeNFT([tokenId], {
         account: user1.account,
       });
 
@@ -209,27 +211,27 @@ describe("Verification Sequence", function () {
       expect(status[2]).to.equal(true); // rewardEligible
 
       // Check NFT level after upgrade
-      const updatedData = await dipNft.read.getUserNFTData([
+      const updatedData = await impactProductNft.read.getUserNFTData([
         getAddress(user1.account.address),
       ]);
       expect(updatedData[2]).to.equal(2n); // Level should be 2 after upgrade
     });
 
     it("Should handle reward distribution through IRewards interface", async function () {
-      const { dipNft, dcuToken, user1, user2, owner } = await loadFixture(
+      const { impactProductNft, dcuToken, user1, user2, owner } = await loadFixture(
         deployContractsFixture
       );
 
       // Complete verification sequence for user1
-      await dipNft.write.verifyPOI([getAddress(user1.account.address)], {
+      await impactProductNft.write.verifyPOI([getAddress(user1.account.address)], {
         account: owner.account,
       });
-      await dipNft.write.safeMint({
+      await impactProductNft.write.safeMint({
         account: user1.account,
       });
 
       // Only verify PoI for user2 (incomplete verification)
-      await dipNft.write.verifyPOI([getAddress(user2.account.address)], {
+      await impactProductNft.write.verifyPOI([getAddress(user2.account.address)], {
         account: owner.account,
       });
 
@@ -251,19 +253,19 @@ describe("Verification Sequence", function () {
     });
 
     it("Should maintain eligibility status when PoI is revoked", async function () {
-      const { dcuRewardManager, dipNft, user1, owner } = await loadFixture(
+      const { dcuRewardManager, impactProductNft, user1, owner } = await loadFixture(
         deployContractsFixture
       );
 
       // Complete verification sequence for user1
-      await dipNft.write.verifyPOI([getAddress(user1.account.address)], {
+      await impactProductNft.write.verifyPOI([getAddress(user1.account.address)], {
         account: owner.account,
       });
       await dcuRewardManager.write.setPoiVerificationStatus(
         [getAddress(user1.account.address), true],
         { account: owner.account }
       );
-      await dipNft.write.safeMint({
+      await impactProductNft.write.safeMint({
         account: user1.account,
       });
 
@@ -288,12 +290,13 @@ describe("Verification Sequence", function () {
       expect(status[2]).to.equal(false); // rewardEligible should now be false
 
       // Try to claim rewards (should fail)
-      await expect(
-        dcuRewardManager.write.rewardImpactProductClaim(
+      await expectRevert(
+        dcuRewardManager.simulate.rewardImpactProductClaim(
           [getAddress(user1.account.address), 2n],
           { account: owner.account }
-        )
-      ).to.be.rejectedWith("User not eligible for rewards");
+        ),
+        "User not eligible for rewards"
+      );
 
       // Restore PoI verification
       await dcuRewardManager.write.setPoiVerificationStatus(

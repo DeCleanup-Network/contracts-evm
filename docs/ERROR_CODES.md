@@ -24,7 +24,7 @@ Where:
 
 ## Error Codes by Contract
 
-### DipNft Contract Errors
+### ImpactProductNFT Contract Errors
 
 | Error Code | Description | Parameters |
 |------------|-------------|------------|

@@ -13,7 +13,7 @@ The following contracts are deployed on the Sepolia testnet:
 | DCUAccounting | 0xF2c3add9b1a4075086e3CE693DCD9Efee81918Ff |
 | DCURewardManager | 0x589679A4aB985E7e50f469507397b2d7a5279c41 |
 | RewardLogic | 0xE23e8f18b7CF16201F7D4F50fBf28A654433CE7A |
-| DipNft | (address not provided) |
+| ImpactProductNFT | (address not provided) |
 
 ## DCUStorage
 
@@ -101,7 +101,7 @@ NFT contract for the DeCleanup Network.
 - `mint(address to)`: Mints a new NFT to the specified address and returns the token ID.
 - `balanceOf(address owner)`: Returns the number of NFTs owned by an address.
 
-## DipNft
+## ImpactProductNFT
 
 Advanced NFT contract with level progression and rewards.
 

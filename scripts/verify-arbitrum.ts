@@ -52,7 +52,7 @@ async function main() {
       address: deployedAddresses.RewardLogic,
       constructorArguments: [
         deployedAddresses.DCUToken,
-        deployedAddresses.DipNft ||
+        deployedAddresses.ImpactProductNFT ||
           "0x0000000000000000000000000000000000000000",
       ],
     });
@@ -92,7 +92,7 @@ async function main() {
       address: deployedAddresses.DCURewardManager,
       constructorArguments: [
         deployedAddresses.DCUToken,
-        deployedAddresses.DipNft ||
+        deployedAddresses.ImpactProductNFT ||
           "0x0000000000000000000000000000000000000000",
       ],
     });
@@ -101,16 +101,16 @@ async function main() {
     handleVerificationError("DCURewardManager", error);
   }
 
-  // Verify DipNft
-  console.log("\nVerifying DipNft...");
+  // Verify ImpactProductNFT
+  console.log("\nVerifying ImpactProductNFT...");
   try {
     await run("verify:verify", {
-      address: deployedAddresses.DipNft,
+      address: deployedAddresses.ImpactProductNFT,
       constructorArguments: [deployedAddresses.DCURewardManager],
     });
-    console.log("✅ DipNft verified successfully!");
+    console.log("✅ ImpactProductNFT verified successfully!");
   } catch (error: any) {
-    handleVerificationError("DipNft", error);
+    handleVerificationError("ImpactProductNFT", error);
   }
 
   console.log("\nVerification process completed!");

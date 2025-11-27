@@ -1,6 +1,6 @@
 # Subgraph Configuration Example
 
-This file provides an example configuration for a subgraph to index DipNft and RewardLogic contract events. The YAML file defines data sources, event handlers, and mapping functions.
+This file provides an example configuration for a subgraph to index ImpactProductNFT and RewardLogic contract events. The YAML file defines data sources, event handlers, and mapping functions.
 
 ## Configuration Code
 
@@ -10,11 +10,11 @@ schema:
   file: ./schema.graphql
 dataSources:
   - kind: ethereum
-    name: DipNft
+    name: ImpactProductNFT
     network: mainnet # Change to your network
     source:
       address: "0x0000000000000000000000000000000000000000" # Replace with your actual contract address
-      abi: DipNft
+      abi: ImpactProductNFT
       startBlock: 0 # Replace with the deployment block
     mapping:
       kind: ethereum/events
@@ -26,8 +26,8 @@ dataSources:
         - User
         - Token
       abis:
-        - name: DipNft
-          file: ./abis/DipNft.json
+        - name: ImpactProductNFT
+          file: ./abis/ImpactProductNFT.json
       eventHandlers:
         - event: NFTEvent(indexed address,indexed uint256,uint256,uint256,uint256,uint256,string)
           handler: handleNFTEvent
@@ -75,7 +75,7 @@ dataSources:
 
 This configuration file should be customized with your actual contract addresses and deployment blocks. It defines two data sources:
 
-1. **DipNft**: Handles NFT-related events, including the unified `NFTEvent` and legacy events
+1. **ImpactProductNFT**: Handles NFT-related events, including the unified `NFTEvent` and legacy events
 2. **RewardLogic**: Handles reward distribution events
 
 For more details on subgraph configuration, see The Graph documentation at https://thegraph.com/docs/. 

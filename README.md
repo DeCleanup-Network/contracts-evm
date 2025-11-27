@@ -32,7 +32,7 @@ To ensure **scalability and upgradeability**, the system is structured with **fo
 ✅ **$DCU Reward Tracking Contract** – Storing earned $DCU until post-TGE claims are enabled.  
 ✅ **Reward Logic Contract** – Processing PoI claims, streaks, and referral bonuses.  
 ✅ **$DCU Token Contract (ERC-20)** – **Pre-TGE implementation with restricted transfers**.  
-✅ **On-Chain Events for Indexing** – Emitting blockchain events for leaderboard & impact tracking.  
+✅ **Onchain Events for Indexing** – Emitting blockchain events for leaderboard & impact tracking.  
 ✅ **Gas Optimization** – Reducing transaction costs for reward distribution.  
 
 ---
@@ -54,7 +54,7 @@ To ensure **scalability and upgradeability**, the system is structured with **fo
 ## ⚡ Scalability Considerations  
 ✅ **Modular Contract Architecture** – Allows upgrades without affecting core functionality.  
 ✅ **Efficient Gas Usage** – Optimized transactions for NFT minting, reward claims, and level upgrades.  
-✅ **Event-Driven System** – Uses on-chain events for indexers and leaderboard updates.  
+✅ **Event-Driven System** – Uses onchain events for indexers and leaderboard updates.  
 ✅ **Future-Ready Claim System** – $DCU is **tracked in the system until post-TGE**, when it will be claimable as tokens.  
 
 ---
@@ -75,7 +75,7 @@ npm test
 
 To run tests for a specific contract:
 ```bash
-npx hardhat test test/DipNft.test.ts
+npx hardhat test test/ImpactProductNFT.test.ts
 ```
 
 ### Test Coverage

@@ -6,7 +6,7 @@ async function main(): Promise<void> {
   console.log("Comparing gas costs before and after storage optimization...");
   console.log("=========================================================");
 
-  // Deploy DipNft and DCURewardManager contracts
+  // Deploy ImpactProductNFT and DCURewardManager contracts
   console.log("Deploying contracts...");
 
   // Get signers
@@ -17,19 +17,19 @@ async function main(): Promise<void> {
   const maxSupply = ethers.utils.parseEther("1000000"); // 1M tokens
   const dcuToken = await DCUToken.deploy(owner.address, maxSupply);
 
-  const DipNft = await ethers.getContractFactory("DipNft");
-  const dipNft = await DipNft.deploy();
+  const ImpactProductNFT = await ethers.getContractFactory("ImpactProductNFT");
+  const impactProductNFT = await ImpactProductNFT.deploy();
 
   const RewardManager = await ethers.getContractFactory("DCURewardManager");
   const rewardManager = await RewardManager.deploy(dcuToken.address);
 
   // Setup contracts
   await dcuToken.updateRewardLogicContract(rewardManager.address);
-  await dipNft.setRewardsContract(rewardManager.address);
+  await impactProductNFT.setRewardsContract(rewardManager.address);
 
   // Measure deployment costs
-  const dipNftDeploymentGas = (await ethers.provider.getTransactionReceipt(
-    dipNft.deployTransaction.hash
+  const impactProductNFTDeploymentGas = (await ethers.provider.getTransactionReceipt(
+    impactProductNFT.deployTransaction.hash
   )) as TransactionReceipt;
 
   const rewardManagerDeploymentGas =
@@ -38,7 +38,7 @@ async function main(): Promise<void> {
     )) as TransactionReceipt;
 
   console.log("Deployment gas costs:");
-  console.log(`DipNft: ${dipNftDeploymentGas.gasUsed.toString()} gas units`);
+  console.log(`ImpactProductNFT: ${impactProductNFTDeploymentGas.gasUsed.toString()} gas units`);
   console.log(
     `DCURewardManager: ${rewardManagerDeploymentGas.gasUsed.toString()} gas units`
   );
@@ -48,7 +48,7 @@ async function main(): Promise<void> {
   console.log("Function call gas costs:");
 
   // Verify a user
-  const verifyPoiTx = await dipNft.verifyPOI(user1.address);
+  const verifyPoiTx = await impactProductNFT.verifyPOI(user1.address);
   const verifyPoiReceipt = await verifyPoiTx.wait();
   console.log(`verifyPOI: ${verifyPoiReceipt.gasUsed.toString()} gas units`);
 
@@ -63,12 +63,12 @@ async function main(): Promise<void> {
   );
 
   // Mint an NFT
-  const mintTx = await dipNft.connect(user1).safeMint();
+  const mintTx = await impactProductNFT.connect(user1).safeMint();
   const mintReceipt = await mintTx.wait();
   console.log(`safeMint: ${mintReceipt.gasUsed.toString()} gas units`);
 
   // Update impact level
-  const updateImpactLevelTx = await dipNft.updateImpactLevel(0, 5);
+  const updateImpactLevelTx = await impactProductNFT.updateImpactLevel(0, 5);
   const updateImpactLevelReceipt = await updateImpactLevelTx.wait();
   console.log(
     `updateImpactLevel: ${updateImpactLevelReceipt.gasUsed.toString()} gas units`

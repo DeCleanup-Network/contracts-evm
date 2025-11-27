@@ -4,7 +4,7 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { Contract } from "ethers";
 
 describe("Input Validation", function () {
-  let dipNft: Contract;
+  let impactProductNft: Contract;
   let rewardManager: Contract;
   let dcuToken: Contract;
   let owner: SignerWithAddress;
@@ -33,23 +33,23 @@ describe("Input Validation", function () {
     );
     await rewardManager.deployed();
 
-    // Deploy DipNft with rewards manager
-    const DipNft = await ethers.getContractFactory("DipNft");
-    dipNft = await DipNft.deploy(rewardManager.address);
-    await dipNft.deployed();
+    // Deploy ImpactProductNFT with rewards manager
+    const ImpactProductNFT = await ethers.getContractFactory("ImpactProductNFT");
+    impactProductNft = await ImpactProductNFT.deploy(rewardManager.address);
+    await impactProductNft.deployed();
 
     // Now update reward logic to point to the actual reward manager
     await dcuToken
       .connect(owner)
       .updateRewardLogicContract(rewardManager.address);
 
-    // Setup rewardManager in DipNft
-    await dipNft
+    // Setup rewardManager in ImpactProductNFT
+    await impactProductNft
       .connect(owner)
       .setRewardsContract(rewardManager.address);
 
     // Verify user1 as POI in both contracts
-    await dipNft.connect(owner).verifyPOI(user1.address);
+    await impactProductNft.connect(owner).verifyPOI(user1.address);
     await rewardManager
       .connect(owner)
       .setPoiVerificationStatus(user1.address, true);
@@ -65,31 +65,33 @@ describe("Input Validation", function () {
       .setRewardEligibilityForTesting(user1.address, true);
   });
 
-  describe("DipNft Input Validation", function () {
+  describe("ImpactProductNFT Input Validation", function () {
     it("Should reject updateImpactLevel with invalid impact level", async function () {
       // Mint an NFT first
-      await dipNft.connect(user1).safeMint();
+      await impactProductNft.connect(user1).safeMint();
       const tokenId = 0; // First token ID
 
       // Try with impact level 0 (invalid)
       try {
-        await dipNft.connect(owner).updateImpactLevel(tokenId, 0);
+        await impactProductNft.connect(owner).updateImpactLevel(tokenId, 0);
         expect.fail("Should have thrown error");
       } catch (error: any) {
-        expect(error.message).to.include("NFT__InvalidLevelRange");
+        expect(error.message).to.include("Invalid impact level range");
       }
 
       // Try with impact level 11 (invalid)
       const MAX_LEVEL = 10;
       try {
-        await dipNft.connect(owner).updateImpactLevel(tokenId, MAX_LEVEL + 1);
+        await impactProductNft
+          .connect(owner)
+          .updateImpactLevel(tokenId, MAX_LEVEL + 1);
         expect.fail("Should have thrown error");
       } catch (error: any) {
-        expect(error.message).to.include("NFT__InvalidLevelRange");
+        expect(error.message).to.include("Invalid impact level range");
       }
 
       // Should work with valid impact level
-      await dipNft.connect(owner).updateImpactLevel(tokenId, 5);
+      await impactProductNft.connect(owner).updateImpactLevel(tokenId, 5);
     });
 
     it("Should reject distributeReward with invalid level", async function () {
@@ -97,25 +99,25 @@ describe("Input Validation", function () {
 
       // Try with level 0 (invalid)
       try {
-        await dipNft.connect(owner).distributeReward(userAddress, 0);
+        await impactProductNft.connect(owner).distributeReward(userAddress, 0);
         expect.fail("Should have thrown error");
       } catch (error: any) {
-        expect(error.message).to.include("NFT__InvalidLevelRange");
+        expect(error.message).to.include("Invalid level range");
       }
 
       // Try with level 11 (invalid)
       const MAX_LEVEL = 10;
       try {
-        await dipNft
+        await impactProductNft
           .connect(owner)
           .distributeReward(userAddress, MAX_LEVEL + 1);
         expect.fail("Should have thrown error");
       } catch (error: any) {
-        expect(error.message).to.include("NFT__InvalidLevelRange");
+        expect(error.message).to.include("Invalid level range");
       }
 
       // Should work with valid level
-      await dipNft.connect(owner).distributeReward(userAddress, 5);
+      await impactProductNft.connect(owner).distributeReward(userAddress, 5);
     });
   });
 

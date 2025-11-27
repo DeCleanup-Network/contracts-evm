@@ -1,4 +1,4 @@
-import { chai, expect } from "./helpers/setup";
+import { chai, expect, expectRevert } from "./helpers/setup";
 import hre from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox-viem/network-helpers";
 import { getAddress } from "viem";
@@ -21,13 +21,13 @@ describe("DCURewardManager", function () {
       "0x0000000000000000000000000000000000000001", // Temporary address
     ]);
 
-    // Deploy DipNft for testing with the rewards contract address
-    const dipNft = await hre.viem.deployContract("DipNft", [
+    // Deploy ImpactProductNFT for testing with the rewards contract address
+    const impactProductNft = await hre.viem.deployContract("ImpactProductNFT", [
       dcuRewardManager.address,
     ]);
 
     // Update the NFT collection address in DCURewardManager
-    await dcuRewardManager.write.updateNftCollection([dipNft.address], {
+    await dcuRewardManager.write.updateNftCollection([impactProductNft.address], {
       account: owner.account,
     });
 
@@ -36,8 +36,8 @@ describe("DCURewardManager", function () {
       account: owner.account,
     });
 
-    // Set the rewards contract in DipNft to the DCURewardManager
-    await dipNft.write.setRewardsContract([dcuRewardManager.address], {
+    // Set the rewards contract in ImpactProductNFT to the DCURewardManager
+    await impactProductNft.write.setRewardsContract([dcuRewardManager.address], {
       account: owner.account,
     });
 
@@ -52,7 +52,7 @@ describe("DCURewardManager", function () {
       user2,
       user3,
       publicClient,
-      dipNft,
+      impactProductNft,
     };
   }
 
@@ -63,28 +63,29 @@ describe("DCURewardManager", function () {
       );
 
       // Try to reward Impact Product claim without PoI verification
-      await expect(
-        dcuRewardManager.write.rewardImpactProductClaim(
+      await expectRevert(
+        dcuRewardManager.simulate.rewardImpactProductClaim(
           [getAddress(user1.account.address), 1n],
           { account: owner.account }
-        )
-      ).to.be.rejectedWith("User not eligible for rewards");
+        ),
+        "User not eligible for rewards"
+      );
     });
 
     it("Should reward for Impact Product claim after PoI verification", async function () {
-      const { dcuRewardManager, dipNft, user1, owner } = await loadFixture(
+      const { dcuRewardManager, impactProductNft, user1, owner } = await loadFixture(
         deployContractsFixture
       );
 
       // Complete verification sequence
-      await dipNft.write.verifyPOI([getAddress(user1.account.address)], {
+      await impactProductNft.write.verifyPOI([getAddress(user1.account.address)], {
         account: owner.account,
       });
       await dcuRewardManager.write.setPoiVerificationStatus(
         [getAddress(user1.account.address), true],
         { account: owner.account }
       );
-      await dipNft.write.mint([getAddress(user1.account.address)], {
+      await impactProductNft.write.mint([getAddress(user1.account.address)], {
         account: owner.account,
       });
 
@@ -102,19 +103,19 @@ describe("DCURewardManager", function () {
     });
 
     it("Should prevent duplicate rewards for the same level", async function () {
-      const { dcuRewardManager, dipNft, user1, owner } = await loadFixture(
+      const { dcuRewardManager, impactProductNft, user1, owner } = await loadFixture(
         deployContractsFixture
       );
 
       // Complete verification sequence
-      await dipNft.write.verifyPOI([getAddress(user1.account.address)], {
+      await impactProductNft.write.verifyPOI([getAddress(user1.account.address)], {
         account: owner.account,
       });
       await dcuRewardManager.write.setPoiVerificationStatus(
         [getAddress(user1.account.address), true],
         { account: owner.account }
       );
-      await dipNft.write.mint([getAddress(user1.account.address)], {
+      await impactProductNft.write.mint([getAddress(user1.account.address)], {
         account: owner.account,
       });
 
@@ -125,12 +126,13 @@ describe("DCURewardManager", function () {
       );
 
       // Try to reward the same level again
-      await expect(
-        dcuRewardManager.write.rewardImpactProductClaim(
+      await expectRevert(
+        dcuRewardManager.simulate.rewardImpactProductClaim(
           [getAddress(user1.account.address), 1n],
           { account: owner.account }
-        )
-      ).to.be.rejectedWith("Level already claimed");
+        ),
+        "Level already claimed"
+      );
 
       // But can claim a different level
       await dcuRewardManager.write.rewardImpactProductClaim(
@@ -238,7 +240,7 @@ describe("DCURewardManager", function () {
     });
 
     it("Should reward referrer when invitee claims Impact Product", async function () {
-      const { dcuRewardManager, dipNft, user1, user2, owner } =
+      const { dcuRewardManager, impactProductNft, user1, user2, owner } =
         await loadFixture(deployContractsFixture);
 
       // Register referral relationship
@@ -248,14 +250,14 @@ describe("DCURewardManager", function () {
       );
 
       // Complete verification sequence for invitee
-      await dipNft.write.verifyPOI([getAddress(user2.account.address)], {
+      await impactProductNft.write.verifyPOI([getAddress(user2.account.address)], {
         account: owner.account,
       });
       await dcuRewardManager.write.setPoiVerificationStatus(
         [getAddress(user2.account.address), true],
         { account: owner.account }
       );
-      await dipNft.write.mint([getAddress(user2.account.address)], {
+      await impactProductNft.write.mint([getAddress(user2.account.address)], {
         account: owner.account,
       });
 
@@ -273,7 +275,7 @@ describe("DCURewardManager", function () {
     });
 
     it("Should only reward referrer once per invitee", async function () {
-      const { dcuRewardManager, dipNft, user1, user2, owner } =
+      const { dcuRewardManager, impactProductNft, user1, user2, owner } =
         await loadFixture(deployContractsFixture);
 
       // Register referral relationship
@@ -283,14 +285,14 @@ describe("DCURewardManager", function () {
       );
 
       // Complete verification sequence for invitee
-      await dipNft.write.verifyPOI([getAddress(user2.account.address)], {
+      await impactProductNft.write.verifyPOI([getAddress(user2.account.address)], {
         account: owner.account,
       });
       await dcuRewardManager.write.setPoiVerificationStatus(
         [getAddress(user2.account.address), true],
         { account: owner.account }
       );
-      await dipNft.write.mint([getAddress(user2.account.address)], {
+      await impactProductNft.write.mint([getAddress(user2.account.address)], {
         account: owner.account,
       });
 
@@ -316,19 +318,19 @@ describe("DCURewardManager", function () {
 
   describe("Reward Claiming", function () {
     it("Should allow users to claim their rewards", async function () {
-      const { dcuRewardManager, dipNft, user1, owner } = await loadFixture(
+      const { dcuRewardManager, impactProductNft, user1, owner } = await loadFixture(
         deployContractsFixture
       );
 
       // Complete verification sequence
-      await dipNft.write.verifyPOI([getAddress(user1.account.address)], {
+      await impactProductNft.write.verifyPOI([getAddress(user1.account.address)], {
         account: owner.account,
       });
       await dcuRewardManager.write.setPoiVerificationStatus(
         [getAddress(user1.account.address), true],
         { account: owner.account }
       );
-      await dipNft.write.mint([getAddress(user1.account.address)], {
+      await impactProductNft.write.mint([getAddress(user1.account.address)], {
         account: owner.account,
       });
 
@@ -354,19 +356,19 @@ describe("DCURewardManager", function () {
   // Add a new test section for the getter functions
   describe("Reward Tracking and Getter Functions", function () {
     it("Should track total earned DCU correctly", async function () {
-      const { dcuRewardManager, dipNft, user1, owner } = await loadFixture(
+      const { dcuRewardManager, impactProductNft, user1, owner } = await loadFixture(
         deployContractsFixture
       );
 
       // Complete verification sequence
-      await dipNft.write.verifyPOI([getAddress(user1.account.address)], {
+      await impactProductNft.write.verifyPOI([getAddress(user1.account.address)], {
         account: owner.account,
       });
       await dcuRewardManager.write.setPoiVerificationStatus(
         [getAddress(user1.account.address), true],
         { account: owner.account }
       );
-      await dipNft.write.mint([getAddress(user1.account.address)], {
+      await impactProductNft.write.mint([getAddress(user1.account.address)], {
         account: owner.account,
       });
 
@@ -384,19 +386,19 @@ describe("DCURewardManager", function () {
     });
 
     it("Should provide correct rewards breakdown", async function () {
-      const { dcuRewardManager, dipNft, user1, owner } = await loadFixture(
+      const { dcuRewardManager, impactProductNft, user1, owner } = await loadFixture(
         deployContractsFixture
       );
 
       // Complete verification sequence
-      await dipNft.write.verifyPOI([getAddress(user1.account.address)], {
+      await impactProductNft.write.verifyPOI([getAddress(user1.account.address)], {
         account: owner.account,
       });
       await dcuRewardManager.write.setPoiVerificationStatus(
         [getAddress(user1.account.address), true],
         { account: owner.account }
       );
-      await dipNft.write.mint([getAddress(user1.account.address)], {
+      await impactProductNft.write.mint([getAddress(user1.account.address)], {
         account: owner.account,
       });
 
@@ -425,19 +427,19 @@ describe("DCURewardManager", function () {
     });
 
     it("Should provide complete user stats", async function () {
-      const { dcuRewardManager, dipNft, user1, owner } = await loadFixture(
+      const { dcuRewardManager, impactProductNft, user1, owner } = await loadFixture(
         deployContractsFixture
       );
 
       // Complete verification sequence
-      await dipNft.write.verifyPOI([getAddress(user1.account.address)], {
+      await impactProductNft.write.verifyPOI([getAddress(user1.account.address)], {
         account: owner.account,
       });
       await dcuRewardManager.write.setPoiVerificationStatus(
         [getAddress(user1.account.address), true],
         { account: owner.account }
       );
-      await dipNft.write.mint([getAddress(user1.account.address)], {
+      await impactProductNft.write.mint([getAddress(user1.account.address)], {
         account: owner.account,
       });
 

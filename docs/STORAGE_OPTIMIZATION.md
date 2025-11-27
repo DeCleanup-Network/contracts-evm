@@ -24,7 +24,7 @@ Our optimization strategy focused on:
 
 ## Changes Made
 
-### DipNft Contract
+### ImpactProductNFT Contract
 
 **Before:**
 ```solidity
@@ -152,7 +152,7 @@ The optimization primarily affects deployment costs and state-changing operation
 
 ```
 Deployment gas costs:
-DipNft: 5,397,269 gas units
+ImpactProductNFT: 5,397,269 gas units
 DCURewardManager: 3,055,132 gas units
 
 Function call gas costs:

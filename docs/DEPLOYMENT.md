@@ -59,7 +59,7 @@ This deploys the following contracts in order:
 3. DCUAccounting
 4. DCUStorage
 5. DCURewardManager
-6. DipNft
+6. ImpactProductNFT
 
 ## Contract Verification
 

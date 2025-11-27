@@ -1,6 +1,6 @@
-# DipNft Contract Mapping Example
+# ImpactProductNFT Contract Mapping Example
 
-This file provides an example AssemblyScript mapping for the DipNft contract events. It shows how to properly handle and index NFT-related events in a subgraph.
+This file provides an example AssemblyScript mapping for the ImpactProductNFT contract events. It shows how to properly handle and index NFT-related events in a subgraph.
 
 ## Mapping Code
 
@@ -12,7 +12,7 @@ import {
   DCURewardTriggered,
   Minted,
   NFTUpgraded
-} from '../generated/DipNft/DipNft'
+} from '../generated/ImpactProductNFT/ImpactProductNFT'
 import { 
   User, 
   Token, 
@@ -212,6 +212,6 @@ export function handleDCURewardTriggered(event: DCURewardTriggered): void {
 
 ## Usage
 
-This mapping file should be used in conjunction with the DipNft contract ABI and the subgraph configuration. It handles all NFT-related events, including the unified `NFTEvent` for claims and upgrades.
+This mapping file should be used in conjunction with the ImpactProductNFT contract ABI and the subgraph configuration. It handles all NFT-related events, including the unified `NFTEvent` for claims and upgrades.
 
 For more details on subgraph development, see The Graph documentation at https://thegraph.com/docs/. 

@@ -7,11 +7,11 @@ export interface ErrorMessageMap {
 }
 
 // Map custom errors to their equivalent string error messages for test compatibility
-export const DipNftErrorMap: ErrorMessageMap = {
+export const ImpactProductNFTErrorMap: ErrorMessageMap = {
   NFT__TokenNotExists: "Token does not exist",
   NFT__NotVerifiedPOI: "You are not a verified POI",
   NFT__RewardsContractNotSet: "Rewards contract not set",
-  NFT__TransferRestricted: "DipNft: transfers are restricted (soulbound NFT)",
+  NFT__TransferRestricted: "ImpactProductNFT: transfers are restricted (soulbound NFT)",
   NFT__InvalidRewardsContract: "Invalid rewards contract address",
   NFT__InvalidAddress: "Invalid address",
   NFT__AlreadyMinted: "You have already minted a token",
@@ -96,7 +96,7 @@ export function normalizeErrorMessage(error: Error | string): string {
 
       // Look up in all error maps
       const errorMaps = [
-        DipNftErrorMap,
+        ImpactProductNFTErrorMap,
         RewardManagerErrorMap,
         TokenErrorMap,
         AccountingErrorMap,

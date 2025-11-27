@@ -4,7 +4,7 @@ This document outlines the changes made to track NFT claims and upgrades, ensuri
 
 ## Enhanced Events Added
 
-### DipNft Contract
+### ImpactProductNFT Contract
 
 1. **NFTEvent**
    - A unified event that tracks both NFT claims and upgrades
@@ -67,7 +67,7 @@ We've added example files to assist with The Graph integration:
 3. **Mapping Files**
    - Example AssemblyScript mapping files for processing events
    - Shows how to update entities and track statistics
-   - See [DipNft Contract Mapping Example](./example/dipnft-mapping.md) and [RewardLogic Contract Mapping Example](./example/rewardlogic-mapping.md)
+   - See [ImpactProductNFT Contract Mapping Example](./example/dipnft-mapping.md) and [RewardLogic Contract Mapping Example](./example/rewardlogic-mapping.md)
 
 ## Testing
 

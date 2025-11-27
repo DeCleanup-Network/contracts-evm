@@ -73,13 +73,13 @@ async function main() {
   const nftCollectionAddress = nftCollection.address;
   console.log("NFTCollection deployed to:", nftCollectionAddress);
 
-  // Deploy DipNft with the reward manager address
-  console.log("Deploying DipNft...");
-  const DipNft = await ethers.getContractFactory("DipNft");
-  const dipNft = await DipNft.deploy(dcuRewardManagerAddress);
-  await dipNft.deployed();
-  const dipNftAddress = dipNft.address;
-  console.log("DipNft deployed to:", dipNftAddress);
+  // Deploy ImpactProductNFT with the reward manager address
+  console.log("Deploying ImpactProductNFT...");
+  const ImpactProductNFT = await ethers.getContractFactory("ImpactProductNFT");
+  const impactProductNFT = await ImpactProductNFT.deploy(dcuRewardManagerAddress);
+  await impactProductNFT.deployed();
+  const impactProductNFTAddress = impactProductNFT.address;
+  console.log("ImpactProductNFT deployed to:", impactProductNFTAddress);
 
   // Deploy Submission contract
   console.log("Deploying Submission...");
@@ -95,11 +95,11 @@ async function main() {
 
   // Update NFT collection references in both contracts
   console.log("Updating NFT collection in RewardLogic...");
-  await rewardLogic.setNFTCollection(dipNftAddress);
+  await rewardLogic.setNFTCollection(impactProductNFTAddress);
   console.log("NFT collection updated in RewardLogic.");
 
   console.log("Updating NFT collection in DCURewardManager...");
-  await dcuRewardManager.updateNftCollection(dipNftAddress);
+  await dcuRewardManager.updateNftCollection(impactProductNFTAddress);
   console.log("NFT collection updated in DCURewardManager.");
 
   // Save deployed contract addresses
@@ -109,7 +109,7 @@ async function main() {
     DCUAccounting: dcuAccountingAddress,
     DCUStorage: dcuStorageAddress,
     DCURewardManager: dcuRewardManagerAddress,
-    DipNft: dipNftAddress,
+    ImpactProductNFT: impactProductNFTAddress,
     NFTCollection: nftCollectionAddress,
     Submission: submissionAddress,
     network: (await ethers.provider.getNetwork()).name,

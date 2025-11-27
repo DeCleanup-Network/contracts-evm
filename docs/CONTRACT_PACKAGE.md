@@ -18,7 +18,7 @@ The DeCleanup Network smart contracts package includes all core contracts for th
 - **DCUAccounting** - Token deposit/withdrawal management
 
 ### NFT & Reward Contracts
-- **DipNft** - Soulbound NFTs representing Impact Products
+- **ImpactProductNFT** - Soulbound NFTs representing Impact Products
 - **NFTCollection** - Basic NFT collection for testing
 - **DCURewardManager** - Manages DCU rewards for various activities
 - **RewardLogic** - Handles reward distribution logic
@@ -83,7 +83,7 @@ package/
     │   ├── DCUToken/
     │   │   ├── abi.json
     │   │   └── bytecode.json
-    │   ├── DipNft/
+    │   ├── ImpactProductNFT/
     │   │   ├── abi.json
     │   │   └── bytecode.json
     │   └── ... (other contracts)
@@ -114,7 +114,7 @@ const rewardLogic = contracts.RewardLogic.connect(signer);
 const accounting = contracts.DCUAccounting.connect(signer);
 const storage = contracts.DCUStorage.connect(signer);
 const rewardManager = contracts.DCURewardManager.connect(signer);
-const dipNft = contracts.DipNft.connect(signer);
+const impactProductNft = contracts.ImpactProductNFT.connect(signer);
 const submission = contracts.Submission.connect(signer);
 const nftCollection = contracts.NFTCollection.connect(signer);
 ```
@@ -203,7 +203,7 @@ import { DCUContracts, Networks } from '@decleanup/contracts';
 
 async function mintNFT(signer: ethers.Signer, to: string, tokenURI: string) {
   const contracts = new DCUContracts(Networks.ARBITRUM_SEPOLIA);
-  const nft = contracts.DipNft.connect(signer);
+  const nft = contracts.ImpactProductNFT.connect(signer);
   
   // Mint new NFT (requires PoI verification)
   const tx = await nft.safeMint();

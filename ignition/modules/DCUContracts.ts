@@ -25,15 +25,17 @@ export default buildModule("DCUContracts", (m) => {
     nftCollection,
   ]);
 
-  // Deploy the DipNft contract with DCURewardManager address
-  const dipNft = m.contract("DipNft", [dcuRewardManager]);
+  // Deploy the ImpactProductNFT contract with DCURewardManager address
+  const impactProductNFT = m.contract("ImpactProductNFT", [dcuRewardManager]);
 
   // Deploy the Submission contract
+  // Constructor: (address _dcuToken, address _rewardLogic, address _rewardManager, uint256 _defaultRewardAmount)
   const submission = m.contract("Submission", [
     dcuToken,
     rewardLogic,
-    "10000000000000000000",
-  ]); // 10 DCU default reward
+    dcuRewardManager, // DCURewardManager address (required for verifier rewards)
+    "10000000000000000000", // 10 DCU default reward (in wei)
+  ]);
 
   // Return all deployed contracts
   return {
@@ -43,7 +45,7 @@ export default buildModule("DCUContracts", (m) => {
     rewardLogic,
     dcuToken,
     dcuRewardManager,
-    dipNft,
+    impactProductNFT,
     submission,
   };
 });
